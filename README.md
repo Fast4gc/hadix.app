@@ -8,14 +8,16 @@ SSL automático**.
 
 ## Instalação (uma linha)
 
-```curl -fsSLO https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
+```
+curl -fsSLO https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
 chmod +x install.sh
 sudo ./install.sh
 ```
 
 ou com wget:
 
-```wget https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
+```
+wget https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
 chmod +x install.sh
 sudo ./install.sh
 ```
