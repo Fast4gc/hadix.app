@@ -1,0 +1,28 @@
+# Template: GitHub Actions — deploy via SSH para a VPS
+# Copie para .github/workflows/deploy.yml no repositorio do app
+# Configure os secrets: SSH_HOST, SSH_USER, SSH_KEY, APP_PATH, APP_NAME
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd ${{ secrets.APP_PATH }}
+            git pull origin main
+            if [ -f package.json ]; then
+              (command -v pnpm >/dev/null && pnpm install --frozen-lockfile) || npm ci
+              npm run build --if-present
+            fi
+            pm2 restart ${{ secrets.APP_NAME }} || pm2 start ecosystem.config.js

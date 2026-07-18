@@ -1,0 +1,18 @@
+# Template: unidade systemd generica para apps que nao usam PM2/Docker
+# Placeholders: __APP_NAME__  __APP_PATH__  __EXEC_START__  __USER__
+[Unit]
+Description=__APP_NAME__
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__APP_PATH__
+ExecStart=__EXEC_START__
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+EnvironmentFile=-__APP_PATH__/.env
+
+[Install]
+WantedBy=multi-user.target

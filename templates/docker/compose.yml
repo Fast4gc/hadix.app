@@ -1,0 +1,19 @@
+# Template: docker-compose para apps que preferem containers.
+# Placeholders: __APP_NAME__  __PORT__  __IMAGE_OR_BUILD__
+version: "3.9"
+
+services:
+  __APP_NAME__:
+    build: .
+    container_name: __APP_NAME__
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:__PORT__:__PORT__"
+    networks:
+      - oracle-bootstrap
+
+networks:
+  oracle-bootstrap:
+    external: true
