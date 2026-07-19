@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# config.sh — caminhos e configuracao global do oracle-bootstrap
+# config.sh — caminhos e configuracao global do Hadix.app
 
-export OB_HOME="/opt/oracle-bootstrap"
+export OB_HOME="${OB_HOME:-/opt/oracle-bootstrap}"
 export OB_CONFIG_DIR="${OB_HOME}/config"
 export OB_APPS_FILE="${OB_CONFIG_DIR}/apps.json"
 export OB_USERS_FILE="${OB_CONFIG_DIR}/users.json"
@@ -9,7 +9,7 @@ export OB_DOMAINS_FILE="${OB_CONFIG_DIR}/domains.json"
 export OB_APPS_DIR="/var/www"
 export OB_REPO_URL="https://github.com/Fast4gc/hadix.app"
 export OB_RAW_URL="https://raw.githubusercontent.com/Fast4gc/hadix.app/main"
-export OB_VERSION="1.0.0"
+export OB_VERSION="1.1.0"
 
 ob_config_init() {
     mkdir -p "$OB_CONFIG_DIR" "$OB_APPS_DIR"

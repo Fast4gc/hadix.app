@@ -9,6 +9,7 @@ set -euo pipefail
 REPO_URL="https://github.com/Fast4gc/hadix.app.git"
 OB_HOME="/opt/oracle-bootstrap"
 BIN_LINK="/usr/local/bin/bootstrap"
+HADIX_LINK="/usr/local/bin/hadix"
 
 # --- checagens iniciais -----------------------------------------------------
 if [ "$(id -u)" -ne 0 ]; then
@@ -17,7 +18,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 echo "=========================================="
-echo "  oracle-bootstrap — instalador"
+echo "  Hadix.app — instalador"
 echo "=========================================="
 echo ""
 
@@ -46,7 +47,7 @@ if [ -d "$OB_HOME/.git" ]; then
     echo "==> Instalacao existente encontrada, atualizando..."
     git -C "$OB_HOME" pull --ff-only
 else
-    echo "==> Clonando oracle-bootstrap para ${OB_HOME}..."
+    echo "==> Clonando Hadix.app para ${OB_HOME}..."
     rm -rf "$OB_HOME"
     if ! git clone --depth 1 "$REPO_URL" "$OB_HOME" 2>/dev/null; then
         echo "==> git clone falhou, baixando ZIP do branch main..."
@@ -64,13 +65,14 @@ chmod +x "$OB_HOME"/installers/*.sh
 chmod +x "$OB_HOME"/commands/*.sh
 
 # --- symlink global ----------------------------------------------------------
-echo "==> Criando comando global 'bootstrap'..."
+echo "==> Criando comandos globais 'bootstrap' e 'hadix'..."
 cat > "$BIN_LINK" << WRAPPER
 #!/usr/bin/env bash
 export OB_HOME="${OB_HOME}"
 exec bash "${OB_HOME}/bootstrap/bootstrap.sh" "\$@"
 WRAPPER
 chmod +x "$BIN_LINK"
+ln -sf "$BIN_LINK" "$HADIX_LINK"
 
 # --- config inicial -----------------------------------------------------------
 mkdir -p "$OB_HOME/config" /var/www /var/log/oracle-bootstrap
@@ -83,8 +85,8 @@ echo "=========================================="
 echo "  Instalacao concluida!"
 echo "=========================================="
 echo ""
-echo "  Rode 'bootstrap' para abrir o menu interativo,"
-echo "  ou 'bootstrap --help' para ver todos os comandos."
+echo "  Rode 'bootstrap' ou 'hadix' para abrir o painel Hadix.app,"
+echo "  ou 'bootstrap --help' para ver todos os comandos. Sem argumentos ele abre o painel por padrao."
 echo ""
 
 read -r -p "Deseja abrir o menu agora? [s/N]: " OPEN_NOW
