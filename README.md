@@ -1,6 +1,6 @@
-# oracle-bootstrap
+# Hadix.app
 
-Toolkit de bootstrap e gerenciamento de VPS (Oracle Cloud, ou qualquer VPS
+Painel completo de bootstrap, monitoramento e gerenciamento de VPS (Oracle Cloud, ou qualquer VPS
 Ubuntu/Debian/RHEL/Oracle Linux) via linha de comando: instala a stack básica
 (Docker, Nginx, Node, Postgres, Redis, firewall, SSL...) e cria/gerencia apps
 (APIs, bots, sites, workers) prontos para produção com **nginx + pm2/docker +
@@ -22,13 +22,14 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-Isso instala o projeto em `/opt/oracle-bootstrap`, cria o comando global
-`bootstrap` e abre o menu interativo (opcional).
+Isso instala o projeto em `/opt/oracle-bootstrap`, cria os comandos globais
+`bootstrap` e `hadix` e abre o painel interativo (opcional). Sem argumentos, o comando abre o painel por padrão.
 
 ## Uso
 
 ```bash
-bootstrap                          # menu interativo
+hadix                              # painel interativo Hadix.app
+bootstrap                          # tambem abre o painel por padrao
 bootstrap install docker           # instala um componente específico
 bootstrap create nextjs meu-site   # cria projeto a partir de um template
 bootstrap create-api minha-api     # API Node/Express + nginx + pm2
@@ -36,15 +37,21 @@ bootstrap create-bot meu-bot       # Bot Discord/Telegram/Python + pm2
 bootstrap create-site meu-site     # Site estático + nginx
 bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
+bootstrap monitor                  # resumo de CPU, memoria, disco, servicos e apps
+bootstrap monitor --watch          # monitor ao vivo; Ctrl+C volta/encerra
 bootstrap logs <nome>              # logs (pm2/docker/nginx)
 bootstrap restart <nome>           # reinicia
 bootstrap backup [nome]            # backup (todos, se omitido)
 bootstrap restore <arquivo.tar.gz> # restaura backup
 bootstrap ssl <dominio>            # emite/renova HTTPS via certbot
 bootstrap remove <nome>            # remove app
-bootstrap update                   # atualiza o oracle-bootstrap
+bootstrap update                   # atualiza o Hadix.app sem reinstalar
 bootstrap uninstall                # desinstala o oracle-bootstrap
 ```
+
+## Painel Hadix.app
+
+O painel inclui opções numeradas para instalar componentes, criar projetos, gerenciar apps, listar apps, monitorar a VPS, atualizar sem reinstalar e abrir ajuda. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
 
 ## O diferencial: templates prontos
 
@@ -73,7 +80,7 @@ Cada template:
 ## Estrutura
 
 ```
-oracle-bootstrap/
+hadix.app/
 ├── install.sh / update.sh / uninstall.sh
 ├── bootstrap/       # núcleo: dispatcher, menu, cores, logger, utils, config
 ├── installers/       # docker, nginx, node, pnpm, bun, postgres, redis,
@@ -100,7 +107,7 @@ oracle-bootstrap/
 - Rode `bootstrap install ufw` (ou `firewalld`) e `bootstrap install fail2ban`
   logo após a instalação.
 - Tokens/segredos (Cloudflare API, DBs) ficam em arquivos `600` fora do
-  controle de versão (`/etc/oracle-bootstrap/*.env`, `.env` de cada app).
+  controle de versão (`/etc/hadix.app/*.env`, `.env` de cada app).
 - `bootstrap ssl <dominio>` configura renovação automática via cron.
 
 ## Licença

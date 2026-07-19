@@ -17,10 +17,10 @@ ob_config_init
 
 show_usage() {
     cat << USAGE
-${BOLD}oracle-bootstrap${NC} — gerenciador de VPS (v${OB_VERSION})
+${BOLD}Hadix.app${NC} — painel e gerenciador de VPS (v${OB_VERSION})
 
 Uso:
-  bootstrap                          Abre o menu interativo
+  bootstrap                          Abre o painel Hadix.app (padrao)
   bootstrap install <componente>     Instala um componente (docker, nginx, node, ...)
   bootstrap create <tipo> <nome>     Cria um projeto a partir de um template
   bootstrap create-api <nome>        Cria uma API (Node/Express) com nginx + pm2
@@ -34,7 +34,8 @@ Uso:
   bootstrap ssl <dominio>            Emite/renova certificado SSL
   bootstrap remove <nome>            Remove um app
   bootstrap list                     Lista os apps gerenciados
-  bootstrap update                   Atualiza o oracle-bootstrap
+  bootstrap monitor [--watch]         Mostra monitoramento da VPS
+  bootstrap update                   Atualiza o Hadix.app sem reinstalar
   bootstrap uninstall                Remove o oracle-bootstrap
 
 Templates disponiveis para 'create':
@@ -82,6 +83,7 @@ dispatch() {
         restore)        require_root; bash "${OB_HOME}/commands/restore.sh" "$@" ;;
         logs)           bash "${OB_HOME}/commands/logs.sh" "$@" ;;
         restart)        require_root; bash "${OB_HOME}/commands/restart.sh" "$@" ;;
+        monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
         ssl)            require_root; bash "${OB_HOME}/commands/ssl.sh" "$@" ;;
         remove)         require_root; bash "${OB_HOME}/commands/remove.sh" "$@" ;;
         list)
