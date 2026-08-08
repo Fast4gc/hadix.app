@@ -6,12 +6,22 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatBytes(bytes: number, decimals = 2): string {
-  if (bytes === 0) return '0 Bytes';
+  if (bytes === 0) return '0 B';
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+export function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
 }
 
 export function formatNumber(num: number): string {
@@ -20,71 +30,39 @@ export function formatNumber(num: number): string {
   return num.toString();
 }
 
-export function formatUptime(seconds: number): string {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  
-  const parts = [];
-  if (days > 0) parts.push(`${days}d`);
-  if (hours > 0) parts.push(`${hours}h`);
-  if (minutes > 0) parts.push(`${minutes}m`);
-  if (secs > 0 || parts.length === 0) parts.push(`${secs}s`);
-  
-  return parts.join(' ');
-}
-
-export function formatDate(date: Date | string): string {
-  return new Date(date).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-export function getStatusColor(status: string): string {
+export function getStatusColor(status: string): 'success' | 'danger' | 'warning' | 'info' {
   switch (status.toLowerCase()) {
     case 'online':
     case 'running':
     case 'healthy':
-    case 'success':
-      return 'text-success';
+    case 'active':
+      return 'success';
     case 'offline':
     case 'stopped':
+    case 'dead':
     case 'error':
-    case 'failed':
-      return 'text-danger';
+      return 'danger';
+    case 'starting':
+    case 'stopping':
+    case 'restarting':
     case 'warning':
-    case 'degraded':
-    case 'pending':
-      return 'text-warning';
+      return 'warning';
     default:
-      return 'text-text-muted';
+      return 'info';
   }
 }
 
-export function getStatusBadge(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'online':
-    case 'running':
-    case 'healthy':
-    case 'success':
-      return 'badge-success';
-    case 'offline':
-    case 'stopped':
-    case 'error':
-    case 'failed':
-      return 'badge-danger';
-    case 'warning':
-    case 'degraded':
-    case 'pending':
-      return 'badge-warning';
-    default:
-      return 'badge-info';
-  }
+export function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+export function generateId(): string {
+  return Math.random().toString(36).substring(2, 15);
 }
 
 export function debounce<T extends (...args: unknown[]) => unknown>(
