@@ -80,9 +80,16 @@ for f in apps users domains; do
     [ -f "$OB_HOME/config/${f}.json" ] || echo '{}' > "$OB_HOME/config/${f}.json"
 done
 
+# --- arquivo de versao --------------------------------------------------------
+if [ -f "$OB_HOME/VERSION" ]; then
+    OB_VERSION="$(tr -d '[:space:]' < "$OB_HOME/VERSION")"
+else
+    OB_VERSION="1.0.0"
+fi
+
 echo ""
 echo "=========================================="
-echo "  Instalacao concluida!"
+echo "  Instalacao concluida! (v${OB_VERSION})"
 echo "=========================================="
 echo ""
 echo "  Rode 'bootstrap' ou 'hadix' para abrir o painel Hadix.app,"

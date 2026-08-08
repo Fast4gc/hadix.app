@@ -12,12 +12,20 @@ source "${OB_HOME}/bootstrap/logger.sh"
 source "${OB_HOME}/bootstrap/utils.sh"
 # shellcheck source=config.sh
 source "${OB_HOME}/bootstrap/config.sh"
+# shellcheck source=version.sh
+source "${OB_HOME}/bootstrap/version.sh"
+# shellcheck source=ui.sh
+source "${OB_HOME}/bootstrap/ui.sh"
 
 ob_config_init
 
 show_usage() {
+    local update_available
+    update_available="$(ob_version_check)"
     cat << USAGE
 ${BOLD}Hadix.app${NC} — painel e gerenciador de VPS (v${OB_VERSION})
+
+$([ -n "$update_available" ] && echo "${YELLOW}${WARN}${NC} ${GOLD}Nova versao disponivel: ${BOLD}${update_available}${NC} — rode 'hadix update'${NC}" || echo "${GREEN}${TICK}${NC} ${DIM}Voce esta com a versao mais recente${NC}")
 
 Uso:
   bootstrap                          Abre o painel Hadix.app (padrao)
@@ -35,6 +43,7 @@ Uso:
   bootstrap remove <nome>            Remove um app
   bootstrap list                     Lista os apps gerenciados
   bootstrap monitor [--watch]         Mostra monitoramento da VPS
+  bootstrap version                  Exibe a versao instalada
   bootstrap update                   Atualiza o Hadix.app sem reinstalar
   bootstrap uninstall                Remove o oracle-bootstrap
 
@@ -90,6 +99,14 @@ dispatch() {
             ob_config_init
             echo -e "${BOLD}Apps gerenciados:${NC}"
             ob_apps_list
+            ;;
+        version|-v|--version)
+            local latest
+            latest="$(ob_version_latest)"
+            echo "Hadix.app ${BOLD}${OB_VERSION}${NC}"
+            if [ -n "$latest" ] && [ "$(ob_version_compare "$latest" "$OB_VERSION")" -gt 0 ]; then
+                echo "Nova versao disponivel: ${BOLD}${latest}${NC} — rode 'hadix update'"
+            fi
             ;;
         update)
             bash "${OB_HOME}/update.sh"

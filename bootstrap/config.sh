@@ -9,7 +9,14 @@ export OB_DOMAINS_FILE="${OB_CONFIG_DIR}/domains.json"
 export OB_APPS_DIR="/var/www"
 export OB_REPO_URL="https://github.com/Fast4gc/hadix.app"
 export OB_RAW_URL="https://raw.githubusercontent.com/Fast4gc/hadix.app/main"
-export OB_VERSION="1.1.0"
+
+# Vetor de versao: sempre le o VERSION file (SemVer MAJOR.MINOR.PATCH)
+export OB_VERSION_FILE="${OB_HOME}/VERSION"
+if [ -f "$OB_VERSION_FILE" ]; then
+    export OB_VERSION="$(tr -d '[:space:]' < "$OB_VERSION_FILE")"
+else
+    export OB_VERSION="0.0.0"
+fi
 
 ob_config_init() {
     mkdir -p "$OB_CONFIG_DIR" "$OB_APPS_DIR"

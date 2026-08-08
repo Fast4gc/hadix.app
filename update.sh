@@ -7,11 +7,15 @@ source "${OB_HOME}/bootstrap/colors.sh"
 source "${OB_HOME}/bootstrap/logger.sh"
 source "${OB_HOME}/bootstrap/utils.sh"
 source "${OB_HOME}/bootstrap/config.sh"
+source "${OB_HOME}/bootstrap/version.sh"
 
 require_root
 
+OLD_VERSION="$(ob_version)"
+
 log_title "Atualizador Hadix.app"
 log_step "Atualizando arquivos do painel em ${OB_HOME}"
+log_info "Versao atual: ${BOLD}${OLD_VERSION}${NC}"
 
 if [ -d "$OB_HOME/.git" ]; then
     if git -C "$OB_HOME" fetch --all --prune && git -C "$OB_HOME" pull --ff-only; then
@@ -50,6 +54,18 @@ else
 fi
 
 chmod +x "$OB_HOME"/*.sh "$OB_HOME"/bootstrap/*.sh "$OB_HOME"/installers/*.sh "$OB_HOME"/commands/*.sh 2>/dev/null
+
+# --- reposiciona "VERSION" baixado pela atualizacao quando via git pull ------
+if [ ! -f "$OB_HOME/VERSION" ]; then
+    echo "1.0.0" > "$OB_HOME/VERSION"
+fi
+NEW_VERSION="$(ob_version)"
+
+if [ "$NEW_VERSION" != "$OLD_VERSION" ]; then
+    log_ok "Versao atualizada: ${BOLD}${OLD_VERSION}${NC} $RIGHT ${BOLD}${NEW_VERSION}${NC}"
+else
+    log_ok "Versao mantida em ${BOLD}${NEW_VERSION}${NC}"
+fi
 
 cat > /usr/local/bin/bootstrap << WRAPPER
 #!/usr/bin/env bash

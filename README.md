@@ -45,6 +45,7 @@ bootstrap backup [nome]            # backup (todos, se omitido)
 bootstrap restore <arquivo.tar.gz> # restaura backup
 bootstrap ssl <dominio>            # emite/renova HTTPS via certbot
 bootstrap remove <nome>            # remove app
+bootstrap version                  # exibe a versao instalada
 bootstrap update                   # atualiza o Hadix.app sem reinstalar
 bootstrap uninstall                # desinstala o oracle-bootstrap
 ```
@@ -109,6 +110,14 @@ hadix.app/
 - Tokens/segredos (Cloudflare API, DBs) ficam em arquivos `600` fora do
   controle de versão (`/etc/hadix.app/*.env`, `.env` de cada app).
 - `bootstrap ssl <dominio>` configura renovação automática via cron.
+
+## Versões
+
+A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.2.0`)
+e é a fonte única usada pelo painel, `bootstrap version`, `bootstrap --help`
+e pelo aviso de atualização. O `update.sh` baixa o `VERSION` novo do
+repositório, compara com a instalada e mostra o diff. Para atualizar o branch:
+edite o arquivo `VERSION`, faça commit e `bootstrap update` na VPS.
 
 ## Licença
 
