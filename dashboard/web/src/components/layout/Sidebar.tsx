@@ -37,10 +37,10 @@ import {
 } from 'lucide-react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, badge: null },
+  { name: 'Painel', href: '/dashboard', icon: LayoutDashboard, badge: null },
   { name: 'Projetos', href: '/dashboard/projects', icon: FolderKanban, badge: '17' },
-  { name: 'Deploy', href: '/dashboard/deploy', icon: Rocket, badge: null },
-  { name: 'Bancos', href: '/dashboard/databases', icon: Database, badge: '5' },
+  { name: 'Deploy', href: '/dashboard/deploy', icon: Zap, badge: null },
+  { name: 'Bancos de Dados', href: '/dashboard/databases', icon: Database, badge: '5' },
   { name: 'Arquivos', href: '/dashboard/files', icon: FileText, badge: null },
   { name: 'Terminal', href: '/dashboard/terminal', icon: Terminal, badge: null },
   { name: 'Domínios', href: '/dashboard/domains', icon: Globe, badge: '12' },
@@ -50,8 +50,6 @@ const navigation = [
   { name: 'Marketplace', href: '/dashboard/marketplace', icon: Store, badge: '14' },
   { name: 'Agendamentos', href: '/dashboard/cron', icon: Zap, badge: '8' },
   { name: 'Usuários', href: '/dashboard/users', icon: Users, badge: '4' },
-  { name: 'Estatísticas', href: '/dashboard/stats', icon: BarChart3, badge: null },
-  { name: 'Notificações', href: '/dashboard/notifications', icon: Bell, badge: '3' },
   { name: 'Configurações', href: '/dashboard/settings', icon: Settings, badge: null },
 ];
 
