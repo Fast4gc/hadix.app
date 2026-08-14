@@ -37,10 +37,12 @@ bootstrap create-bot meu-bot       # Bot Discord/Telegram/Python + pm2
 bootstrap create-site meu-site     # Site estático + nginx
 bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
+bootstrap vps /var/www             # navegador da VPS: arquivos, deploy, nginx e pm2
 bootstrap dashboard                # painel central: contas, planos, bots, nodes
 bootstrap dashboard users          # lista contas/usuarios do hadix.site
 bootstrap dashboard plans          # lista planos de assinatura e receita
-bootstrap dashboard nodes          # lista VPS (multi-VPS)
+bootstrap dashboard nodes          # lista/adiciona/remove VPS (multi-VPS)
+bootstrap dashboard apps           # lista apps e abre ações rápidas
 bootstrap monitor                  # resumo de CPU, memoria, disco, servicos e apps
 bootstrap monitor --watch          # monitor ao vivo; Ctrl+C volta/encerra
 bootstrap front                    # painel do front (prod/dev/ping) — hadix.site
@@ -60,7 +62,7 @@ bootstrap uninstall                # desinstala o oracle-bootstrap
 
 ## Painel Hadix.app
 
-O painel inclui opções numeradas para instalar componentes, criar projetos, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+O painel inclui opções numeradas para instalar componentes, criar projetos, navegar pelos arquivos da VPS, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
 
 ## Dashboard Central (bootstrap dashboard)
 
@@ -83,6 +85,19 @@ O dashboard lê de `config/`:
 
 Os dados podem ser populados pela API do hadix.site (no front) ou editados diretamente nos JSONs.
 
+
+## Navegador da VPS e operações de hospedagem
+
+O comando `bootstrap vps [diretorio]` abre um painel de arquivos para administrar a VPS sem sair do Hadix.app. Ele foi pensado para operações essenciais de uma plataforma de hospedagem no estilo Squarecloud:
+
+- navegar por diretórios, abrir arquivos e editar configurações;
+- criar `.env` padrão para novos apps;
+- executar `git pull`, instalar dependências e rodar build;
+- registrar o projeto atual no PM2;
+- publicar domínio no Nginx como proxy ou site estático;
+- ajustar permissões do diretório de app;
+- usar fallback ASCII quando o terminal não renderiza UTF-8, evitando caracteres quebrados.
+
 ## Front (hadix.site)
 
 O Hadix.app exporta o front oficial para `https://hadix.site`, em produção ou desenvolvimento:
@@ -94,6 +109,7 @@ bootstrap front prod       # clona/atualiza, instala deps, build e publica (ngin
 bootstrap front dev        # sobe dev server na porta OB_FRONT_PORT (padrão 3001)
 bootstrap front stop       # para front prod e dev
 bootstrap front log        # logs do front via pm2
+bootstrap front clean      # remove node_modules/caches/builds para liberar disco
 ```
 
 Configuração (via `bootstrap/config.sh` ou variáveis de ambiente):
@@ -106,6 +122,8 @@ Configuração (via `bootstrap/config.sh` ou variáveis de ambiente):
 | `OB_FRONT_PORT` | `3001` | porta do dev server |
 | `OB_PING_TIMEOUT` | `6` | timeout do ping em segundos |
 | `OB_PING_DELAY` | `800` | limite de latência (ms) para considerar delay |
+
+Para VPS com pouco disco, use `bootstrap front clean` após deploys/testes locais para remover `node_modules`, caches e builds antigos do front.
 
 O ping também aparece no cabeçalho do painel principal e no `bootstrap monitor`.
 

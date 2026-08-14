@@ -12,7 +12,7 @@ set -uo pipefail
 
 OB_HOME="${OB_HOME:-/opt/oracle-bootstrap}"
 source "${OB_HOME}/bootstrap/colors.sh"; source "${OB_HOME}/bootstrap/logger.sh"
-source "${OB_HOME}/bootstrap/utils.sh"; source "${OB_HOME}/bootstrap/config.sh"
+source "${OB_HOME}/bootstrap/utils.sh"; source "${OB_HOME}/bootstrap/config.sh"; source "${OB_HOME}/bootstrap/ui.sh"
 ob_config_init
 
 FRONT_URL="${OB_FRONT_URL:-https://hadix.site}"
@@ -29,8 +29,10 @@ DELAY_MS=800
 # Mede latencia ate a URL do front. Imprime "ms" (0 = sem resposta).
 front_latency() {
     local code ms
-    ms="$(curl -o /dev/null -s -w '%{time_total}' --max-time "$PING_TIMEOUT" -k "$FRONT_URL" 2>/dev/null)"
-    code="$(curl -o /dev/null -s -w '%{http_code}' --max-time "$PING_TIMEOUT" -k "$FRONT_URL" 2>/dev/null)"
+    local result
+    result="$(curl -o /dev/null -s -w '%{time_total} %{http_code}' --max-time "$PING_TIMEOUT" -k "$FRONT_URL" 2>/dev/null)"
+    ms="$(awk '{print $1}' <<< "$result")"
+    code="$(awk '{print $2}' <<< "$result")"
     if [ -z "$ms" ] || [ -z "$code" ] || [ "$code" = "000" ]; then
         echo "0"
     else
@@ -226,6 +228,19 @@ cmd_stop() {
     log_ok "Front ${FRONT_NAME} parado."
 }
 
+cmd_clean() {
+    require_root
+    if [ ! -d "$FRONT_DIR" ]; then
+        log_info "Front ainda nao existe em ${FRONT_DIR}."
+        return 0
+    fi
+    log_step "Limpando caches e artefatos pesados do front"
+    rm -rf "${FRONT_DIR}/node_modules" "${FRONT_DIR}/.next/cache" "${FRONT_DIR}/dist" "${FRONT_DIR}/build" "${FRONT_DIR}/out"
+    if command_exists npm; then npm cache clean --force >/dev/null 2>&1 || true; fi
+    if command_exists pnpm; then pnpm store prune >/dev/null 2>&1 || true; fi
+    log_ok "Limpeza concluida. Rode 'bootstrap front prod' para reconstruir quando precisar."
+}
+
 cmd_log() {
     command_exists pm2 || { log_error "pm2 nao instalado."; exit 1; }
     pm2 logs "${FRONT_NAME}${2:+-$2}" --lines 50
@@ -246,6 +261,7 @@ cmd_panel() {
     menu_item "3" "Status / ping da VPS" "latencia ate ${FRONT_URL}"
     menu_item "4" "Parar front" "derruba prod e dev"
     menu_item "5" "Logs (pm2)"
+    menu_item "6" "Limpar caches/build" "libera disco"
     menu_item "0" "Voltar"
     menu_footer
     local choice
@@ -256,6 +272,7 @@ cmd_panel() {
         3) cmd_status ;;
         4) cmd_stop ;;
         5) cmd_log ;;
+        6) cmd_clean ;;
         0|*) return ;;
     esac
     echo ""
@@ -269,5 +286,6 @@ case "${1:-}" in
     dev)        cmd_dev ;;
     stop)       cmd_stop ;;
     log)        cmd_log ;;
-    *)          log_error "Uso: bootstrap front [status|prod|dev|stop|log]" ;;
+    clean)      cmd_clean ;;
+    *)          log_error "Uso: bootstrap front [status|prod|dev|stop|log|clean]" ;;
 esac

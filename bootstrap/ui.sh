@@ -46,7 +46,7 @@ section_title() {
     local text="$1" color="${2:-${CYAN}}"
     echo ""
     echo -e "  ${color}${BOLD}${DOT} ${text}${NC}"
-    echo -e "  ${color}$(repeat_char 40 "─")${NC}"
+    echo -e "  ${color}$(repeat_char 40 "$THIN_T")${NC}"
 }
 
 # Separador horizontal fino
@@ -54,7 +54,7 @@ separator() {
     local w
     w="$(term_width)"
     [ "$w" -gt 90 ] && w=90
-    echo -e "  ${GRAY}$(repeat_char $((w - 4)) "─")${NC}"
+    echo -e "  ${GRAY}$(repeat_char $((w - 4)) "$THIN_T")${NC}"
 }
 
 # Linha de separacao com texto (ex: ----[ Menu ]----)
@@ -66,7 +66,7 @@ rule() {
     total=$((w - 6))
     left=$(( (total - ${#text}) / 2 ))
     right=$((total - left - ${#text}))
-    echo -e "${color}$(repeat_char "$left" "─")${NC} [ ${BOLD}${text}${NC} ] ${color}$(repeat_char "$right" "─")${NC}"
+    echo -e "${color}$(repeat_char "$left" "$THIN_T")${NC} [ ${BOLD}${text}${NC} ] ${color}$(repeat_char "$right" "$THIN_T")${NC}"
 }
 
 # Ping da VPS ate o front oficial (hadix.site): mede latencia e status.
@@ -74,8 +74,10 @@ rule() {
 vps_ping() {
     local url="${OB_FRONT_URL:-https://hadix.site}"
     local timeout="${OB_PING_TIMEOUT:-6}" ms code
-    ms="$(curl -o /dev/null -s -w '%{time_total}' --max-time "$timeout" -k "$url" 2>/dev/null)"
-    code="$(curl -o /dev/null -s -w '%{http_code}' --max-time "$timeout" -k "$url" 2>/dev/null)"
+    local result
+    result="$(curl -o /dev/null -s -w '%{time_total} %{http_code}' --max-time "$timeout" -k "$url" 2>/dev/null)"
+    ms="$(awk '{print $1}' <<< "$result")"
+    code="$(awk '{print $2}' <<< "$result")"
     if [ -z "$ms" ] || [ -z "$code" ] || [ "$code" = "000" ]; then
         echo "0 offline"
     else

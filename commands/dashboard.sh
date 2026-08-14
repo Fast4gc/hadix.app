@@ -15,6 +15,15 @@ source "${OB_HOME}/bootstrap/version.sh"
 source "${OB_HOME}/bootstrap/ui.sh"
 ob_config_init
 
+require_dashboard_tools() {
+    if ! command_exists jq; then
+        log_error "jq nao esta instalado. Rode: bootstrap install jq ou apt-get install -y jq"
+        exit 1
+    fi
+}
+
+require_dashboard_tools
+
 trap 'echo; echo -e "${YELLOW}Voltando ao painel Hadix.app...${NC}"; sleep 1' INT
 
 FRONT_URL="${OB_FRONT_URL:-https://hadix.site}"
@@ -52,8 +61,10 @@ service_state_color() {
 # Ping da VPS ate o front
 front_latency() {
     local code ms
-    ms="$(curl -o /dev/null -s -w '%{time_total}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
-    code="$(curl -o /dev/null -s -w '%{http_code}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
+    local result
+    result="$(curl -o /dev/null -s -w '%{time_total} %{http_code}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
+    ms="$(awk '{print $1}' <<< "$result")"
+    code="$(awk '{print $2}' <<< "$result")"
     if [ -z "$ms" ] || [ -z "$code" ] || [ "$code" = "000" ]; then
         echo "0"
     else
@@ -301,7 +312,9 @@ cmd_menu() {
     menu_item "2" "Gerenciar contas" "usuarios do hadix.site"
     menu_item "3" "Gerenciar planos" "planos de assinatura"
     menu_item "4" "Gerenciar nodes" "adicionar/remover VPS"
-    menu_item "5" "Monitorar VPS local" "--watch"
+    menu_item "5" "Apps hospedados" "status, logs, restart"
+    menu_item "6" "Navegar VPS" "arquivos e deploy"
+    menu_item "7" "Monitorar VPS local" "--watch"
     menu_item "0" "Voltar"
     menu_footer
     local choice
@@ -311,7 +324,9 @@ cmd_menu() {
         2) cmd_users ;;
         3) cmd_plans ;;
         4) cmd_nodes ;;
-        5) bash "${OB_HOME}/commands/monitor.sh" --watch ;;
+        5) cmd_apps ;;
+        6) bash "${OB_HOME}/commands/vps.sh" ;;
+        7) bash "${OB_HOME}/commands/monitor.sh" --watch ;;
         0|*) return ;;
     esac
     echo ""
@@ -335,7 +350,7 @@ cmd_users() {
     echo ""
     if [ "$total" -gt 0 ]; then
         printf "  ${GRAY}%-18s${NC} ${CYAN}%-12s${NC} %-10s %-14s${NC}\n" "USUARIO" "PLANO" "BOTS" "SITES"
-        echo -e "  ${GRAY}$(repeat_char 60 "─")${NC}"
+        echo -e "  ${GRAY}$(repeat_char 60 "$THIN_T")${NC}"
         while read -r line; do
             local uname uplan ubots_used ubots_limit usites_used usites_limit
             uname="$(echo "$line" | jq -r '.key')"
@@ -354,14 +369,22 @@ cmd_users() {
         echo -e "  ${DIM}Nenhuma conta cadastrada.${NC}"
     fi
     echo ""
-    echo -e "  ${DIM}Para adicionar: edite ${OB_USERS_FILE} ou use a API do hadix.site${NC}"
-    echo -e "  ${DIM}Para editar: edite o JSON diretamente com 'hadix edit users'${NC}"
+    echo -e "  ${DIM}Use as acoes abaixo para manter usuarios sem editar JSON manualmente.${NC}"
     echo ""
-    echo -e "  ${RED} 0${NC}  Voltar"
+    menu_item "1" "Adicionar conta"
+    menu_item "2" "Alterar status"
+    menu_item "3" "Remover conta"
+    menu_item "0" "Voltar"
     echo ""
     local choice
     choice="$(ask "Acao" "")"
     case "$choice" in
+        1)
+            local u n e d p bl sl
+            u="$(slugify "$(ask "Usuario" "cliente")")"; n="$(ask "Nome" "$u")"; e="$(ask "Email" "")"; d="$(ask "Discord ID" "")"; p="$(ask "Plano" "starter")"
+            bl="$(ask "Limite de bots" "1")"; sl="$(ask "Limite de sites" "1")"; ob_user_add "$u" "$n" "$e" "$d" "$p" "$bl" "$sl" ;;
+        2) local u st; u="$(ask "Usuario" "")"; st="$(ask "Status (active/suspended)" "active")"; ob_user_set "$u" status "$st" ;;
+        3) local u tmp; u="$(ask "Usuario" "")"; tmp="$(mktemp)"; jq --arg u "$u" 'del(.[$u])' "$OB_USERS_FILE" > "$tmp" && mv "$tmp" "$OB_USERS_FILE" ;;
         0|*) return ;;
     esac
 }
@@ -399,11 +422,15 @@ cmd_plans() {
     else
         echo -e "  ${DIM}Nenhum plano cadastrado.${NC}"
     fi
-    echo -e "  ${RED} 0${NC}  Voltar"
+    menu_item "1" "Adicionar plano"
+    menu_item "2" "Remover plano"
+    menu_item "0" "Voltar"
     echo ""
     local choice
     choice="$(ask "Acao" "")"
     case "$choice" in
+        1) local id n pr c i bl sl f; id="$(slugify "$(ask "ID" "starter")")"; n="$(ask "Nome" "$id")"; pr="$(ask "Preco" "19.90")"; c="$(ask "Moeda" "BRL")"; i="$(ask "Intervalo" "monthly")"; bl="$(ask "Limite bots" "1")"; sl="$(ask "Limite sites" "1")"; f="$(ask "Features" "pm2,nginx,ssl")"; ob_plan_add "$id" "$n" "$pr" "$c" "$i" "$bl" "$sl" "$f" ;;
+        2) local id; id="$(ask "ID do plano" "")"; ob_plan_remove "$id" ;;
         0|*) return ;;
     esac
 }
@@ -442,11 +469,48 @@ cmd_nodes() {
         echo -e "  ${DIM}Nenhum node configurado.${NC}"
     fi
     echo ""
-    echo -e "  ${RED} 0${NC}  Voltar"
+    menu_item "1" "Adicionar node"
+    menu_item "2" "Atualizar status"
+    menu_item "3" "Remover node"
+    menu_item "0" "Voltar"
     echo ""
     local choice
     choice="$(ask "Acao" "")"
     case "$choice" in
+        1) local n ip r o role; n="$(slugify "$(ask "Nome" "node-1")")"; ip="$(ask "IP" "")"; r="$(ask "Regiao" "br")"; o="$(ask "Sistema" "linux")"; role="$(ask "Funcao" "worker")"; ob_node_add "$n" "$ip" "$r" "$o" "$role" ;;
+        2) local n st; n="$(ask "Node" "")"; st="$(ask "Status (online/offline/pending)" "online")"; ob_node_set "$n" status "$st"; ob_node_set "$n" last_ping "$(date -Iseconds)" ;;
+        3) local n; n="$(ask "Node" "")"; ob_node_remove "$n" ;;
+        0|*) return ;;
+    esac
+}
+
+cmd_apps() {
+    clear
+    rule "Apps Hospedados" "$SKY"
+    echo ""
+    local total; total="$(ob_apps_count)"
+    echo -e "  ${BOLD}Total: ${total} apps${NC}"
+    echo ""
+    if [ "$total" -gt 0 ]; then
+        printf "  ${GRAY}%-18s %-10s %-8s %-8s %-24s %s${NC}\n" "APP" "TIPO" "STATUS" "PORTA" "DOMINIO" "PATH"
+        echo -e "  ${GRAY}$(repeat_char 86 "$THIN_T")${NC}"
+        while IFS= read -r line; do
+            local n t st port domain path
+            n="$(echo "$line" | jq -r '.key')"; t="$(echo "$line" | jq -r '.value.type // "-"')"; st="$(echo "$line" | jq -r '.value.status // "-"')"
+            port="$(echo "$line" | jq -r '.value.port // 0')"; domain="$(echo "$line" | jq -r '.value.domain // "-"')"; path="$(echo "$line" | jq -r '.value.path // "-"')"
+            printf "  ${WHITE}%-18s${NC} ${CYAN}%-10s${NC} %-8s %-8s %-24s ${DIM}%s${NC}\n" "$n" "$t" "$st" "$port" "$domain" "$path"
+        done < <(jq -r 'to_entries | sort_by(.key) | .[] | @json' "$OB_APPS_FILE" 2>/dev/null)
+    fi
+    echo ""
+    menu_item "1" "Logs"; menu_item "2" "Reiniciar"; menu_item "3" "Backup"; menu_item "4" "Remover"; menu_item "5" "Abrir pasta no navegador VPS"; menu_item "0" "Voltar"
+    local choice name path
+    choice="$(ask "Acao" "")"
+    case "$choice" in
+        1) name="$(ask "App" "")"; bash "${OB_HOME}/commands/logs.sh" "$name" ;;
+        2) name="$(ask "App" "")"; bash "${OB_HOME}/commands/restart.sh" "$name" ;;
+        3) name="$(ask "App" "")"; bash "${OB_HOME}/commands/backup.sh" "$name" ;;
+        4) name="$(ask "App" "")"; bash "${OB_HOME}/commands/remove.sh" "$name" ;;
+        5) name="$(ask "App" "")"; path="$(jq -r --arg n "$name" '.[$n].path // empty' "$OB_APPS_FILE")"; bash "${OB_HOME}/commands/vps.sh" "${path:-$OB_APPS_DIR}" ;;
         0|*) return ;;
     esac
 }
@@ -461,5 +525,6 @@ case "${1:-}" in
     users)    cmd_users ;;
     plans)    cmd_plans ;;
     nodes)    cmd_nodes ;;
-    *)        log_error "Uso: bootstrap dashboard [users|plans|nodes|--refresh]" ;;
+    apps)     cmd_apps ;;
+    *)        log_error "Uso: bootstrap dashboard [users|plans|nodes|apps|--refresh]" ;;
 esac

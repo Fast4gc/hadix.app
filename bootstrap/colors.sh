@@ -53,6 +53,18 @@ BOX_TL='╔'; BOX_TR='╗'; BOX_BL='╚'; BOX_BR='╝'
 TICK='✓'; CROSS='✗'; WARN='⚠'; INFO='ℹ'
 RIGHT='→'; DOT='•'; SEARCH='⌕'; SPIN='⟳'
 
+# Fallback ASCII quando o terminal/localidade nao renderiza UTF-8 corretamente.
+# Evita saidas como "��������" em consoles web/SSH mal configurados.
+_OB_LOCALE_CHECK="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
+if ! printf '%s' "$_OB_LOCALE_CHECK" | tr '[:upper:]' '[:lower:]' | grep -Eq 'utf-?8'; then
+    THIN_T='-'; THIN_V='|'
+    THICK_T='='; THICK_V='|'
+    CORNER_UL='+'; CORNER_UR='+'; CORNER_DL='+'; CORNER_DR='+'
+    BOX_TL='+'; BOX_TR='+'; BOX_BL='+'; BOX_BR='+'
+    TICK='OK'; CROSS='X'; WARN='!'; INFO='i'
+    RIGHT='>'; DOT='-'; SEARCH='?'; SPIN='*'
+fi
+
 exit_codes_supported() {
     [ -t 0 ] && [ "${TERM:-}" != "dumb" ]
 }
