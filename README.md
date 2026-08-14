@@ -95,7 +95,8 @@ O comando `bootstrap vps [diretorio]` abre um painel de arquivos para administra
 - executar `git pull`, instalar dependências e rodar build;
 - registrar o projeto atual no PM2;
 - publicar domínio no Nginx como proxy ou site estático;
-- ajustar permissões do diretório de app.
+- ajustar permissões do diretório de app;
+- usar fallback ASCII quando o terminal não renderiza UTF-8, evitando caracteres quebrados.
 
 ## Front (hadix.site)
 
@@ -108,6 +109,7 @@ bootstrap front prod       # clona/atualiza, instala deps, build e publica (ngin
 bootstrap front dev        # sobe dev server na porta OB_FRONT_PORT (padrão 3001)
 bootstrap front stop       # para front prod e dev
 bootstrap front log        # logs do front via pm2
+bootstrap front clean      # remove node_modules/caches/builds para liberar disco
 ```
 
 Configuração (via `bootstrap/config.sh` ou variáveis de ambiente):
@@ -120,6 +122,8 @@ Configuração (via `bootstrap/config.sh` ou variáveis de ambiente):
 | `OB_FRONT_PORT` | `3001` | porta do dev server |
 | `OB_PING_TIMEOUT` | `6` | timeout do ping em segundos |
 | `OB_PING_DELAY` | `800` | limite de latência (ms) para considerar delay |
+
+Para VPS com pouco disco, use `bootstrap front clean` após deploys/testes locais para remover `node_modules`, caches e builds antigos do front.
 
 O ping também aparece no cabeçalho do painel principal e no `bootstrap monitor`.
 

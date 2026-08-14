@@ -29,6 +29,17 @@ else
     export OB_VERSION="0.0.0"
 fi
 
+
+json_number() {
+    local value="${1:-0}"
+    value="${value//,/.}"
+    if [[ "$value" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+        echo "$value"
+    else
+        echo "0"
+    fi
+}
+
 # ---------------------------------------------------------------------------
 # Inicializacao: cria arquivos JSON vazios se nao existirem
 # ---------------------------------------------------------------------------
@@ -147,6 +158,8 @@ ob_users_by_plan() {
 ob_user_add() {
     local username="$1" name="$2" email="$3" discord_id="$4" plan="$5"
     local bots_limit="$6" sites_limit="$7"
+    bots_limit="$(json_number "$bots_limit")"
+    sites_limit="$(json_number "$sites_limit")"
     local tmp
     tmp="$(mktemp)"
     jq --arg u "$username" --arg n "$name" --arg e "$email" --arg d "$discord_id" \
@@ -190,6 +203,9 @@ ob_plan_get() {
 ob_plan_add() {
     local plan_id="$1" name="$2" price="$3" currency="$4" interval="$5"
     local bots_limit="$6" sites_limit="$7" features="$8"
+    price="$(json_number "$price")"
+    bots_limit="$(json_number "$bots_limit")"
+    sites_limit="$(json_number "$sites_limit")"
     local tmp
     tmp="$(mktemp)"
     jq --arg id "$plan_id" --arg n "$name" --arg pr "$price" --arg c "$currency" \

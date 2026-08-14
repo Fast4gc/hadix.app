@@ -31,7 +31,7 @@ show_dir() {
     echo -e "  ${GRAY}Diretorio:${NC} ${BOLD}${VPS_CWD}${NC}"
     echo ""
     printf "  ${GRAY}%-4s %-5s %-10s %-17s %s${NC}\n" "#" "Tipo" "Tam" "Alterado" "Nome"
-    echo -e "  ${GRAY}$(repeat_char 76 "─")${NC}"
+    echo -e "  ${GRAY}$(repeat_char 76 "$THIN_T")${NC}"
     echo -e "  ${CYAN}..${NC}   ${DIM}dir   -          -                 voltar${NC}"
     local i=1
     while IFS=$'\t' read -r ftype size changed name; do

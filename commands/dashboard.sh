@@ -15,6 +15,15 @@ source "${OB_HOME}/bootstrap/version.sh"
 source "${OB_HOME}/bootstrap/ui.sh"
 ob_config_init
 
+require_dashboard_tools() {
+    if ! command_exists jq; then
+        log_error "jq nao esta instalado. Rode: bootstrap install jq ou apt-get install -y jq"
+        exit 1
+    fi
+}
+
+require_dashboard_tools
+
 trap 'echo; echo -e "${YELLOW}Voltando ao painel Hadix.app...${NC}"; sleep 1' INT
 
 FRONT_URL="${OB_FRONT_URL:-https://hadix.site}"
@@ -52,8 +61,10 @@ service_state_color() {
 # Ping da VPS ate o front
 front_latency() {
     local code ms
-    ms="$(curl -o /dev/null -s -w '%{time_total}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
-    code="$(curl -o /dev/null -s -w '%{http_code}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
+    local result
+    result="$(curl -o /dev/null -s -w '%{time_total} %{http_code}' --max-time "${OB_PING_TIMEOUT:-6}" -k "$FRONT_URL" 2>/dev/null)"
+    ms="$(awk '{print $1}' <<< "$result")"
+    code="$(awk '{print $2}' <<< "$result")"
     if [ -z "$ms" ] || [ -z "$code" ] || [ "$code" = "000" ]; then
         echo "0"
     else
@@ -339,7 +350,7 @@ cmd_users() {
     echo ""
     if [ "$total" -gt 0 ]; then
         printf "  ${GRAY}%-18s${NC} ${CYAN}%-12s${NC} %-10s %-14s${NC}\n" "USUARIO" "PLANO" "BOTS" "SITES"
-        echo -e "  ${GRAY}$(repeat_char 60 "─")${NC}"
+        echo -e "  ${GRAY}$(repeat_char 60 "$THIN_T")${NC}"
         while read -r line; do
             local uname uplan ubots_used ubots_limit usites_used usites_limit
             uname="$(echo "$line" | jq -r '.key')"
@@ -358,8 +369,7 @@ cmd_users() {
         echo -e "  ${DIM}Nenhuma conta cadastrada.${NC}"
     fi
     echo ""
-    echo -e "  ${DIM}Para adicionar: edite ${OB_USERS_FILE} ou use a API do hadix.site${NC}"
-    echo -e "  ${DIM}Para editar: edite o JSON diretamente com 'hadix edit users'${NC}"
+    echo -e "  ${DIM}Use as acoes abaixo para manter usuarios sem editar JSON manualmente.${NC}"
     echo ""
     menu_item "1" "Adicionar conta"
     menu_item "2" "Alterar status"
@@ -483,7 +493,7 @@ cmd_apps() {
     echo ""
     if [ "$total" -gt 0 ]; then
         printf "  ${GRAY}%-18s %-10s %-8s %-8s %-24s %s${NC}\n" "APP" "TIPO" "STATUS" "PORTA" "DOMINIO" "PATH"
-        echo -e "  ${GRAY}$(repeat_char 86 "─")${NC}"
+        echo -e "  ${GRAY}$(repeat_char 86 "$THIN_T")${NC}"
         while IFS= read -r line; do
             local n t st port domain path
             n="$(echo "$line" | jq -r '.key')"; t="$(echo "$line" | jq -r '.value.type // "-"')"; st="$(echo "$line" | jq -r '.value.status // "-"')"
