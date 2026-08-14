@@ -109,10 +109,11 @@ main_menu() {
         menu_item "2" "Instalar componentes" "docker, nginx, node, ..."
         menu_item "3" "Criar novo projeto"
         menu_item "4" "Gerenciar apps existentes"
-        menu_item "5" "Front hadix.site" "exportar prod / dev / ping"
-        menu_item "6" "Monitorar VPS" "--watch"
-        menu_item "7" "Atualizar Hadix.app"
-        menu_item "8" "Ajuda e comandos rapidos"
+        menu_item "5" "Navegar VPS" "arquivos, deploy, nginx, pm2"
+        menu_item "6" "Front hadix.site" "exportar prod / dev / ping"
+        menu_item "7" "Monitorar VPS" "--watch"
+        menu_item "8" "Atualizar Hadix.app"
+        menu_item "9" "Ajuda e comandos rapidos"
         menu_item "0" "Sair"
         menu_footer
         local choice
@@ -122,10 +123,11 @@ main_menu() {
             2) installers_menu ;;
             3) create_menu ;;
             4) manage_menu ;;
-            5) bash "${OB_HOME}/commands/front.sh" ;;
-            6) bash "${OB_HOME}/commands/monitor.sh" --watch; read -r -p "Pressione ENTER para voltar..." ;;
-            7) bash "${OB_HOME}/update.sh"; read -r -p "Pressione ENTER para voltar..." ;;
-            8) bash "${OB_HOME}/bootstrap/bootstrap.sh" --help; read -r -p "Pressione ENTER para voltar..." ;;
+            5) bash "${OB_HOME}/commands/vps.sh" ;;
+            6) bash "${OB_HOME}/commands/front.sh" ;;
+            7) bash "${OB_HOME}/commands/monitor.sh" --watch; read -r -p "Pressione ENTER para voltar..." ;;
+            8) bash "${OB_HOME}/update.sh"; read -r -p "Pressione ENTER para voltar..." ;;
+            9) bash "${OB_HOME}/bootstrap/bootstrap.sh" --help; read -r -p "Pressione ENTER para voltar..." ;;
             0) echo -e "${GREEN}${TICK}${NC} Até mais! Hadix.app encerrado."; echo ""; exit 0 ;;
             *) ;;
         esac
