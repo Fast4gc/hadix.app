@@ -105,12 +105,12 @@ main_menu() {
         sysinfo
         separator
         echo ""
-        menu_item "1" "Instalar componentes" "docker, nginx, node, ..."
-        menu_item "2" "Criar novo projeto"
-        menu_item "3" "Gerenciar apps existentes"
-        menu_item "4" "Listar apps"
-        menu_item "5" "Monitorar VPS" "--watch"
-        menu_item "6" "Front hadix.site" "exportar prod / dev / ping"
+        menu_item "1" "Dashboard central" "contas, planos, bots, nodes, ping"
+        menu_item "2" "Instalar componentes" "docker, nginx, node, ..."
+        menu_item "3" "Criar novo projeto"
+        menu_item "4" "Gerenciar apps existentes"
+        menu_item "5" "Front hadix.site" "exportar prod / dev / ping"
+        menu_item "6" "Monitorar VPS" "--watch"
         menu_item "7" "Atualizar Hadix.app"
         menu_item "8" "Ajuda e comandos rapidos"
         menu_item "0" "Sair"
@@ -118,12 +118,12 @@ main_menu() {
         local choice
         choice="$(ask "Escolha uma opcao" "")"
         case "$choice" in
-            1) installers_menu ;;
-            2) create_menu ;;
-            3) manage_menu ;;
-            4) log_title "Apps"; ob_apps_list; read -r -p "Pressione ENTER para voltar..." ;;
-            5) bash "${OB_HOME}/commands/monitor.sh" --watch; read -r -p "Pressione ENTER para voltar..." ;;
-            6) bash "${OB_HOME}/commands/front.sh" ;;
+            1) bash "${OB_HOME}/commands/dashboard.sh" ;;
+            2) installers_menu ;;
+            3) create_menu ;;
+            4) manage_menu ;;
+            5) bash "${OB_HOME}/commands/front.sh" ;;
+            6) bash "${OB_HOME}/commands/monitor.sh" --watch; read -r -p "Pressione ENTER para voltar..." ;;
             7) bash "${OB_HOME}/update.sh"; read -r -p "Pressione ENTER para voltar..." ;;
             8) bash "${OB_HOME}/bootstrap/bootstrap.sh" --help; read -r -p "Pressione ENTER para voltar..." ;;
             0) echo -e "${GREEN}${TICK}${NC} Até mais! Hadix.app encerrado."; echo ""; exit 0 ;;

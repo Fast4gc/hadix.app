@@ -182,3 +182,121 @@ menu_footer() {
     echo -e "  ${DIM}Digite o numero da opcao e pressione ENTER. 0 para sair/voltar.${NC}"
     echo ""
 }
+
+# ---------------------------------------------------------------------------
+# Dashboard helpers — cards, barras, tabelas, status boxes
+# ---------------------------------------------------------------------------
+
+# Stat card: bloco compacto de metrica (label + valor + cor)
+# Uso: stat_card "Contas" "42" "$GREEN"
+stat_card() {
+    local label="$1" value="$2" color="${3:-${CYAN}}"
+    printf "  %s${BOLD}%-14s${NC} %s%b${NC}\n" "$color" "$label" "$color" "$value"
+}
+
+# Stat card inline (2 colunas lado a lado)
+stat_pair() {
+    local l1="$1" v1="$2" c1="$3" l2="$4" v2="$5" c2="$6"
+    printf "  %s${BOLD}%-14s${NC} %s%b${NC}   %s${BOLD}%-14s${NC} %s%b${NC}\n" \
+        "$c1" "$l1" "$c1" "$v1" "$c2" "$l2" "$c2" "$v2"
+}
+
+# Barra de progresso: [████████░░░░░░░░] 50%
+# Uso: progress_bar 50 100 20
+progress_bar() {
+    local current="$1" total="$2" width="${3:-20}"
+    [ "$total" -gt 0 ] 2>/dev/null || total=1
+    local pct=$((current * 100 / total))
+    local filled=$((current * width / total))
+    local empty=$((width - filled))
+    local bar=""
+    local i
+    for ((i=0; i<filled; i++)); do bar+="█"; done
+    for ((i=0; i<empty; i++)); do bar+="░"; done
+    local color="$GREEN"
+    [ "$pct" -gt 80 ] && color="$YELLOW"
+    [ "$pct" -gt 95 ] && color="$RED"
+    printf "  ${color}%s${NC} ${DIM}%3d%%${NC}" "$bar" "$pct"
+}
+
+# Barra horizontal de uso (bots/sites) com limite
+usage_bar() {
+    local used="$1" limit="$2" width="${3:-16}"
+    [ "$limit" -gt 0 ] 2>/dev/null || limit=1
+    local pct=$((used * 100 / limit))
+    local filled=$((used * width / limit))
+    [ "$filled" -gt "$width" ] && filled="$width"
+    local empty=$((width - filled))
+    local bar=""
+    local i
+    for ((i=0; i<filled; i++)); do bar+="█"; done
+    for ((i=0; i<empty; i++)); do bar+="░"; done
+    local color="$GREEN"
+    [ "$pct" -gt 70 ] && color="$YELLOW"
+    [ "$pct" -gt 90 ] && color="$RED"
+    printf "${color}%s${NC} ${DIM}%d/%d${NC}" "$bar" "$used" "$limit"
+}
+
+# Linha de tabela colorida com alinhamento
+table_row() {
+    local col1="$1" col2="$2" col3="$3" col4="${4:-}" col5="${5:-}"
+    if [ -n "$col5" ]; then
+        printf "  ${WHITE}%-18s${NC} ${CYAN}%-12s${NC} %-10s ${GRAY}%-20s${NC} %s\n" \
+            "$col1" "$col2" "$col3" "$col4" "$col5"
+    elif [ -n "$col4" ]; then
+        printf "  ${WHITE}%-18s${NC} ${CYAN}%-12s${NC} %-10s %s\n" \
+            "$col1" "$col2" "$col3" "$col4"
+    else
+        printf "  ${WHITE}%-18s${NC} ${CYAN}%-12s${NC} %s\n" \
+            "$col1" "$col2" "$col3"
+    fi
+}
+
+# Status badge de VPS node (online/offline/pending)
+node_status_badge() {
+    local status="$1"
+    case "$status" in
+        online)  echo -e "${GREEN}${BG_DARK} ONLINE ${NC}" ;;
+        offline) echo -e "${RED}${BG_DARK} OFFLINE ${NC}" ;;
+        pending) echo -e "${YELLOW}${BG_DARK} PENDENTE ${NC}" ;;
+        *)       echo -e "${GRAY}${BG_DARK} ? ${NC}" ;;
+    esac
+}
+
+# Status badge de plano (active/expired/expiring)
+plan_status_badge() {
+    local status="$1"
+    case "$status" in
+        active)   echo -e "${GREEN}${BG_DARK} ATIVO ${NC}" ;;
+        expired)  echo -e "${RED}${BG_DARK} EXPIRADO ${NC}" ;;
+        expiring) echo -e "${YELLOW}${BG_DARK} VENCENDO ${NC}" ;;
+        *)        echo -e "${GRAY}${BG_DARK} ? ${NC}" ;;
+    esac
+}
+
+# Box de secao do dashboard (titulo com borda)
+dash_section() {
+    local title="$1" icon="${2:-}"
+    local w
+    w="$(term_width)"
+    [ "$w" -gt 90 ] && w=90
+    echo ""
+    echo -e "  ${CYAN}${THICK_T}${THICK_T}$(repeat_char $((w - 6)) "$THICK_T")${THICK_T}${THICK_T}${NC}"
+    if [ -n "$icon" ]; then
+        echo -e "  ${CYAN}${THICK_V}${NC}  ${BOLD}${icon} ${title}${NC}$(repeat_char $((w - ${#title} - ${#icon} - 8)) ' ')${CYAN}${THICK_V}${NC}"
+    else
+        echo -e "  ${CYAN}${THICK_V}${NC}  ${BOLD}${title}${NC}$(repeat_char $((w - ${#title} - 8)) ' ')${CYAN}${THICK_V}${NC}"
+    fi
+    echo -e "  ${CYAN}${THICK_T}${THICK_T}$(repeat_char $((w - 6)) "$THICK_T")${THICK_T}${THICK_T}${NC}"
+}
+
+# Resumo compacto de sistema (CPU, RAM, disco) em uma linha
+sys_summary_line() {
+    local cpu_load mem_info disk_info cpu_pct
+    cpu_load="$(awk '{print $1}' /proc/loadavg 2>/dev/null || echo "?")"
+    mem_info="$(free -h 2>/dev/null | awk '/Mem: {print $3"/"$2}' || echo "?")"
+    disk_info="$(df -h / 2>/dev/null | awk 'NR==2 {print $5}' || echo "?")"
+    cpu_pct="$(awk -v l="$cpu_load" '{printf "%.0f", l/NF*100}' /proc/loadavg 2>/dev/null || echo "?")"
+    printf "  ${GRAY}CPU${NC} ${BOLD}%s%%${NC} ${GRAY}|${NC} ${GRAY}RAM${NC} ${BOLD}%s${NC} ${GRAY}|${NC} ${GRAY}Disco${NC} ${BOLD}%s${NC}" \
+        "$cpu_pct" "$mem_info" "$disk_info"
+}

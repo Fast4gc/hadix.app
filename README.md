@@ -37,6 +37,10 @@ bootstrap create-bot meu-bot       # Bot Discord/Telegram/Python + pm2
 bootstrap create-site meu-site     # Site estático + nginx
 bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
+bootstrap dashboard                # painel central: contas, planos, bots, nodes
+bootstrap dashboard users          # lista contas/usuarios do hadix.site
+bootstrap dashboard plans          # lista planos de assinatura e receita
+bootstrap dashboard nodes          # lista VPS (multi-VPS)
 bootstrap monitor                  # resumo de CPU, memoria, disco, servicos e apps
 bootstrap monitor --watch          # monitor ao vivo; Ctrl+C volta/encerra
 bootstrap front                    # painel do front (prod/dev/ping) — hadix.site
@@ -57,6 +61,27 @@ bootstrap uninstall                # desinstala o oracle-bootstrap
 ## Painel Hadix.app
 
 O painel inclui opções numeradas para instalar componentes, criar projetos, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+
+## Dashboard Central (bootstrap dashboard)
+
+O painel central responde às perguntas do dia a dia de um host:
+
+- **Contas** — quantas contas existem no hadix.site, quantas estão ativas, expiradas ou vencendo (7 dias), e quantas por plano.
+- **Planos** — planos cadastrados, preço, limites de bots/sites e receita estimada mensal.
+- **Bots e sites hospedados** — total de apps, separados por tipo (bot/site/api/worker), uso vs. limite contratado e top apps.
+- **Multi-VPS** — quantas VPS (nodes) estão registradas, online/offline, recursos (RAM/CPU/disco) e apps por node.
+- **Front** — ping/latência até `https://hadix.site`.
+
+O dashboard lê de `config/`:
+
+| Arquivo | Conteúdo |
+|---|---|
+| `apps.json` | apps hospedados (tipo, porta, domínio, owner) |
+| `users.json` | contas do hadix.site (plano, limites, uso) |
+| `plans.json` | planos de assinatura (preço, limites, usuários ativos) |
+| `nodes.json` | nodes/VPS da rede multi-VPS |
+
+Os dados podem ser populados pela API do hadix.site (no front) ou editados diretamente nos JSONs.
 
 ## Front (hadix.site)
 
@@ -123,9 +148,11 @@ hadix.app/
 │   ├── github/        # deploy.yml (GitHub Actions -> deploy via SSH)
 │   └── systemd/       # app.service (alternativa ao pm2)
 ├── commands/          # create-api/bot/site/worker, create.sh (templates),
-│                      # backup, restore, logs, restart, ssl, remove
-├── dashboard/          # (reservado) api/web/database para um painel gráfico futuro
-└── config/             # apps.json, users.json, domains.json (estado do sistema)
+│                      # backup, restore, logs, restart, ssl, remove,
+│                      # dashboard (painel central), front (hadix.site)
+├── dashboard/          # (removido) painel gráfico não é mais usado
+└── config/             # apps.json, users.json, domains.json, plans.json,
+                       # nodes.json (estado do sistema)
 ```
 
 ## Requisitos
@@ -143,7 +170,7 @@ hadix.app/
 
 ## Versões
 
-A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.3.0`)
+A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.3.1`)
 e é a fonte única usada pelo painel, `bootstrap version`, `bootstrap --help`
 e pelo aviso de atualização. O `update.sh` baixa o `VERSION` novo do
 repositório, compara com a instalada e mostra o diff. Para atualizar o branch:
