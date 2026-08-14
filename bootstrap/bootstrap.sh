@@ -42,6 +42,7 @@ Uso:
   bootstrap ssl <dominio>            Emite/renova certificado SSL
   bootstrap remove <nome>            Remove um app
   bootstrap list                     Lista os apps gerenciados
+  bootstrap vps [diretorio]           Navega pela VPS e executa acoes de deploy
   bootstrap monitor [--watch]         Mostra monitoramento da VPS
   bootstrap dashboard                 Painel central (contas, planos, bots, nodes)
   bootstrap dashboard users           Lista/gerencia contas do hadix.site
@@ -100,6 +101,7 @@ dispatch() {
         restore)        require_root; bash "${OB_HOME}/commands/restore.sh" "$@" ;;
         logs)           bash "${OB_HOME}/commands/logs.sh" "$@" ;;
         restart)        require_root; bash "${OB_HOME}/commands/restart.sh" "$@" ;;
+        vps|files)      require_root; bash "${OB_HOME}/commands/vps.sh" "$@" ;;
         monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
         dashboard)      bash "${OB_HOME}/commands/dashboard.sh" "$@" ;;
         front)          bash "${OB_HOME}/commands/front.sh" "$@" ;;
