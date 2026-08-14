@@ -39,6 +39,10 @@ bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
 bootstrap monitor                  # resumo de CPU, memoria, disco, servicos e apps
 bootstrap monitor --watch          # monitor ao vivo; Ctrl+C volta/encerra
+bootstrap front                    # painel do front (prod/dev/ping) — hadix.site
+bootstrap front status             # ping e status da VPS ate https://hadix.site
+bootstrap front prod               # exporta o front em producao (build + nginx/pm2)
+bootstrap front dev                # roda o front em modo desenvolvimento
 bootstrap logs <nome>              # logs (pm2/docker/nginx)
 bootstrap restart <nome>           # reinicia
 bootstrap backup [nome]            # backup (todos, se omitido)
@@ -52,7 +56,33 @@ bootstrap uninstall                # desinstala o oracle-bootstrap
 
 ## Painel Hadix.app
 
-O painel inclui opções numeradas para instalar componentes, criar projetos, gerenciar apps, listar apps, monitorar a VPS, atualizar sem reinstalar e abrir ajuda. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+O painel inclui opções numeradas para instalar componentes, criar projetos, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+
+## Front (hadix.site)
+
+O Hadix.app exporta o front oficial para `https://hadix.site`, em produção ou desenvolvimento:
+
+```bash
+bootstrap front            # painel interativo do front (status + menu)
+bootstrap front status     # ping/latência até hadix.site (VPS OK / DELAY / OFFLINE)
+bootstrap front prod       # clona/atualiza, instala deps, build e publica (nginx ou pm2)
+bootstrap front dev        # sobe dev server na porta OB_FRONT_PORT (padrão 3001)
+bootstrap front stop       # para front prod e dev
+bootstrap front log        # logs do front via pm2
+```
+
+Configuração (via `bootstrap/config.sh` ou variáveis de ambiente):
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `OB_FRONT_URL` | `https://hadix.site` | URL pública do front |
+| `OB_FRONT_DIR` | `/var/www/hadix-front` | diretório do código no VPS |
+| `OB_FRONT_REPO` | `https://github.com/Fast4gc/hadix-front.git` | repositório do front |
+| `OB_FRONT_PORT` | `3001` | porta do dev server |
+| `OB_PING_TIMEOUT` | `6` | timeout do ping em segundos |
+| `OB_PING_DELAY` | `800` | limite de latência (ms) para considerar delay |
+
+O ping também aparece no cabeçalho do painel principal e no `bootstrap monitor`.
 
 ## O diferencial: templates prontos
 

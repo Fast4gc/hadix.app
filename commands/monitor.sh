@@ -7,6 +7,7 @@ source "${OB_HOME}/bootstrap/colors.sh"
 source "${OB_HOME}/bootstrap/logger.sh"
 source "${OB_HOME}/bootstrap/utils.sh"
 source "${OB_HOME}/bootstrap/config.sh"
+source "${OB_HOME}/bootstrap/ui.sh"
 
 bytes_to_human() {
     local bytes="${1:-0}"
@@ -51,6 +52,10 @@ monitor_once() {
     printf "${CYAN}%-18s${NC} %s\n" "Memoria:" "$mem_line"
     printf "${CYAN}%-18s${NC} %s\n" "Disco /:" "$disk_line"
     printf "${CYAN}%-18s${NC} %s\n" "Apps Hadix:" "$apps_count"
+    if [ -n "${OB_FRONT_URL:-}" ]; then
+        ping_line="$(vps_ping)"
+        printf "${CYAN}%-18s${NC} %s\n" "Front ${OB_FRONT_URL}:" "$(ping_badge "$ping_line")"
+    fi
     echo ""
     echo -e "${BOLD}Servicos principais${NC}"
     for svc in nginx docker redis postgresql fail2ban ufw; do

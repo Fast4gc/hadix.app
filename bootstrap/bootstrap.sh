@@ -43,6 +43,10 @@ Uso:
   bootstrap remove <nome>            Remove um app
   bootstrap list                     Lista os apps gerenciados
   bootstrap monitor [--watch]         Mostra monitoramento da VPS
+  bootstrap front                     Painel do front (prod/dev/ping) — hadix.site
+  bootstrap front status              Ping e status da VPS ate hadix.site
+  bootstrap front prod                Build e publica o front em producao
+  bootstrap front dev                 Sobe o front em modo desenvolvimento
   bootstrap version                  Exibe a versao instalada
   bootstrap update                   Atualiza o Hadix.app sem reinstalar
   bootstrap uninstall                Remove o oracle-bootstrap
@@ -93,6 +97,7 @@ dispatch() {
         logs)           bash "${OB_HOME}/commands/logs.sh" "$@" ;;
         restart)        require_root; bash "${OB_HOME}/commands/restart.sh" "$@" ;;
         monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
+        front)          bash "${OB_HOME}/commands/front.sh" "$@" ;;
         ssl)            require_root; bash "${OB_HOME}/commands/ssl.sh" "$@" ;;
         remove)         require_root; bash "${OB_HOME}/commands/remove.sh" "$@" ;;
         list)

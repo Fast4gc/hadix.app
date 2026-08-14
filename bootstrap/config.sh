@@ -10,6 +10,12 @@ export OB_APPS_DIR="/var/www"
 export OB_REPO_URL="https://github.com/Fast4gc/hadix.app"
 export OB_RAW_URL="https://raw.githubusercontent.com/Fast4gc/hadix.app/main"
 
+# Front oficial do Hadix (exportado para https://hadix.site)
+export OB_FRONT_URL="${OB_FRONT_URL:-https://hadix.site}"
+export OB_FRONT_DIR="${OB_FRONT_DIR:-/var/www/hadix-front}"
+export OB_FRONT_REPO="${OB_FRONT_REPO:-https://github.com/Fast4gc/hadix-front.git}"
+export OB_FRONT_PORT="${OB_FRONT_PORT:-3001}"
+
 # Vetor de versao: sempre le o VERSION file (SemVer MAJOR.MINOR.PATCH)
 export OB_VERSION_FILE="${OB_HOME}/VERSION"
 if [ -f "$OB_VERSION_FILE" ]; then

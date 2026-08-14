@@ -69,6 +69,40 @@ rule() {
     echo -e "${color}$(repeat_char "$left" "─")${NC} [ ${BOLD}${text}${NC} ] ${color}$(repeat_char "$right" "─")${NC}"
 }
 
+# Ping da VPS ate o front oficial (hadix.site): mede latencia e status.
+# Imprime: <ms> <status> onde status = ok|delay|offline
+vps_ping() {
+    local url="${OB_FRONT_URL:-https://hadix.site}"
+    local timeout="${OB_PING_TIMEOUT:-6}" ms code
+    ms="$(curl -o /dev/null -s -w '%{time_total}' --max-time "$timeout" -k "$url" 2>/dev/null)"
+    code="$(curl -o /dev/null -s -w '%{http_code}' --max-time "$timeout" -k "$url" 2>/dev/null)"
+    if [ -z "$ms" ] || [ -z "$code" ] || [ "$code" = "000" ]; then
+        echo "0 offline"
+    else
+        local mstxt
+        mstxt="$(awk -v t="$ms" 'BEGIN { printf "%.0f", t*1000 }')"
+        if [ "$mstxt" -lt "${OB_PING_DELAY:-800}" ]; then
+            echo "$mstxt ok"
+        else
+            echo "$mstxt delay"
+        fi
+    fi
+}
+
+# Formata o status do ping como bolha colorida de dashboard
+ping_badge() {
+    local line="$1" ms status
+    line="${line:-0 offline}"
+    ms="$(echo "$line" | awk '{print $1}')"
+    status="$(echo "$line" | awk '{print $2}')"
+    case "$status" in
+        ok)      echo -e "${GREEN}${BG_DARK} VPS OK ${NC} ${DIM}${ms}ms${NC}" ;;
+        delay)   echo -e "${YELLOW}${BG_DARK} VPS COM DELAY ${NC} ${DIM}${ms}ms${NC}" ;;
+        offline) echo -e "${RED}${BG_DARK} VPS OFFLINE ${NC}" ;;
+        *)       echo -e "${GRAY}${BG_DARK} sem resposta ${NC}" ;;
+    esac
+}
+
 # Mensagem de boas-vindas / cabecalho com versao e atualizacao
 panel_header() {
     local version="$1" update="$2" w
@@ -95,6 +129,8 @@ ASCII
     else
         echo -e "  ${DIM}Versao ${BOLD}${version}${NC}${DIM}${NC} ${GRAY}${DOT}${NC} ${DIM}Linux VPS ready${NC}"
     fi
+
+    echo -e "  ${GRAY}${DOT}${NC} Front: ${SKY}${OB_FRONT_URL:-https://hadix.site}${NC} ${GRAY}${DOT}${NC} $(ping_badge "$(vps_ping)")"
     echo ""
 }
 
