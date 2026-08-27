@@ -44,6 +44,10 @@ Uso:
   bootstrap list                     Lista os apps gerenciados
   bootstrap vps [diretorio]           Navega pela VPS e executa acoes de deploy
   bootstrap monitor [--watch]         Mostra monitoramento da VPS
+  bootstrap production                Configura a VPS p/ hospedar bots/sites (Discloud/Sqcl)
+  bootstrap production --check        Status atual da stack de hosting (sem alterar)
+  bootstrap production --dry-run      Simula sem alterar nada
+  bootstrap status [app] [--json]     Status de apps (tipo, processo, porta, dominio)
   bootstrap dashboard                 Painel central (contas, planos, bots, nodes)
   bootstrap dashboard users           Lista/gerencia contas do hadix.site
   bootstrap dashboard plans           Lista planos de assinatura
@@ -103,6 +107,8 @@ dispatch() {
         restart)        require_root; bash "${OB_HOME}/commands/restart.sh" "$@" ;;
         vps|files)      require_root; bash "${OB_HOME}/commands/vps.sh" "$@" ;;
         monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
+        production|prod-setup) bash "${OB_HOME}/commands/production.sh" "$@" ;;
+        status)         bash "${OB_HOME}/commands/status.sh" "$@" ;;
         dashboard)      bash "${OB_HOME}/commands/dashboard.sh" "$@" ;;
         front)          bash "${OB_HOME}/commands/front.sh" "$@" ;;
         ssl)            require_root; bash "${OB_HOME}/commands/ssl.sh" "$@" ;;

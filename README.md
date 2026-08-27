@@ -37,6 +37,10 @@ bootstrap create-bot meu-bot       # Bot Discord/Telegram/Python + pm2
 bootstrap create-site meu-site     # Site estático + nginx
 bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
+bootstrap status [app] [--json]    # status de apps (tipo, processo, porta, dominio)
+bootstrap production               # configura a VPS p/ hospedar bots/sites (Discloud/Squarecloud)
+bootstrap production --check       # status da stack de hosting (sem alterar)
+bootstrap production --dry-run     # simula sem alterar nada
 bootstrap vps /var/www             # navegador da VPS: arquivos, deploy, nginx e pm2
 bootstrap dashboard                # painel central: contas, planos, bots, nodes
 bootstrap dashboard users          # lista contas/usuarios do hadix.site
@@ -63,6 +67,29 @@ bootstrap uninstall                # desinstala o oracle-bootstrap
 ## Painel Hadix.app
 
 O painel inclui opções numeradas para instalar componentes, criar projetos, navegar pelos arquivos da VPS, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+
+O menu principal é organizado em **seções** (HOSTING, CRIAR, GERENCIAR, SISTEMA) e já mostra uma linha de status de hosting (se a stack está pronta, nº de apps e ping do front) para você ver de relance se a VPS está "em produção".
+
+## Produzindo a VPS como plataforma de hosting
+
+`bootstrap production` transforma a VPS em uma plataforma de hospedagem de **bots e sites** no estilo Discloud/Squarecloud. É idempotente — pode rodar quantas vezes quiser sem quebrar nada:
+
+- **Stack completa**: nginx, Node, pnpm, pm2, Docker, Redis, Postgres, ufw (22/80/443), fail2ban, Certbot (SSL) e Netdata (monitor).
+- **Estrutura de hosting**: `/var/www`, `/var/hadix/{domains,ssl,logs,backups,envs}`.
+- **Usuário `hadix`** (não-root) com pm2 próprio + boot persistente via systemd (`pm2-hadix.service`) — mais seguro para rodar apps.
+- **Nginx presets** de proxy/static/websocket para bots e sites.
+- **Manifesto `hadix.toml`** por app (padrão Discloud/Squarecloud: `type`, `start`, `port`, `domain`, `pm2`, `[limits]`, `[env]`) gerado automaticamente para apps existentes sem sobrescrever os já criados.
+- **`/var/hadix/host.json`**: manifesto da VPS (recursos + IP + contagem de apps) consumível pelo front `hadix.site`.
+
+```bash
+bootstrap production              # configurar (idempotente)
+bootstrap production --check      # ver o que ja esta instalado/ativo
+bootstrap production --dry-run    # simular sem alterar
+bootstrap production --reset      # refazer configs mantendo os apps
+bootstrap status                  # tabela de apps (tipo, processo, porta, dominio)
+bootstrap status meu-app          # detalhe do app + hadix.toml
+bootstrap status --json           # saida JSON p/ o frontend
+```
 
 ## Dashboard Central (bootstrap dashboard)
 
