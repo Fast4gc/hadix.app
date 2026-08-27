@@ -12,11 +12,20 @@ term_width() {
     fi
 }
 
-# Linha repetida de um caractere
+# Linha repetida de um caractere (seguro p/ ASCII e UTF-8)
 repeat_char() {
     local count="$1" ch="$2"
     [ "$count" -lt 0 ] && count=0
-    printf '%*s' "$count" '' | tr ' ' "$ch"
+    # se ch for multi-char UTF-8, tr nao funciona bem -> usa loop
+    if [ "${#ch}" -gt 1 ] || [[ "$ch" == *"�"* ]]; then
+        # fallback ASCII ja definido em colors.sh
+        ch="-"
+    fi
+    if [ "${#ch}" -eq 1 ]; then
+        printf '%*s' "$count" '' | tr ' ' "$ch"
+    else
+        local out=""; local i; for ((i=0;i<count;i++)); do out+="$ch"; done; printf '%s' "$out"
+    fi
 }
 
 # Titulo centralizado dentro de uma "caixa" de largura w
@@ -112,15 +121,20 @@ panel_header() {
     [ "$w" -gt 90 ] && w=90
 
     echo ""
-    echo -e "${MAGENTA}${BOLD}"
-    cat << 'ASCII'
+    # ASCII simples: evita quebras em web console; usa logo limpo
+    if [ "${THICK_T:-}" != "=" ]; then
+        echo -e "${MAGENTA}${BOLD}"
+        cat << 'ASCII'
    _   _           _ _            _       _
   | | | | __ _  __| (_)_  __   __| | __ _| |_ __ _
   | |_| |/ _` |/ _` | \ \/ /  / _` |/ _` | __/ _` |
   |  _  | (_| | (_| | |>  <  | (_| | (_| | || (_| |
   |_| |_|\__,_|\__,_|_/_/\_\  \__,_|\__,_|\__\__,_|
 ASCII
-    echo -e "${NC}"
+        echo -e "${NC}"
+    else
+        echo -e "${MAGENTA}${BOLD}  HADIX.APP — Painel de VPS${NC}"
+    fi
 
     local line
     line="  ${BOLD}${WHITE}Hadix.app${NC} ${GRAY}${DOT}${NC} ${SKY}Painel de VPS${NC} ${GRAY}${DOT}${NC} ${DIM}deploy${NC} ${GRAY}${DOT}${NC} ${DIM}monitor${NC}"
@@ -132,7 +146,10 @@ ASCII
         echo -e "  ${DIM}Versao ${BOLD}${version}${NC}${DIM}${NC} ${GRAY}${DOT}${NC} ${DIM}Linux VPS ready${NC}"
     fi
 
-    echo -e "  ${GRAY}${DOT}${NC} Front: ${SKY}${OB_FRONT_URL:-https://hadix.site}${NC} ${GRAY}${DOT}${NC} $(ping_badge "$(vps_ping)")"
+    # ping nao deve travar header: timeout curto ja em vps_ping
+    local ping_cached
+    ping_cached="$(vps_ping 2>/dev/null || echo "0 offline")"
+    echo -e "  ${GRAY}${DOT}${NC} Front: ${SKY}${OB_FRONT_URL:-https://hadix.site}${NC} ${GRAY}${DOT}${NC} $(ping_badge "$ping_cached")"
     echo ""
 }
 
@@ -203,7 +220,7 @@ stat_pair() {
         "$c1" "$l1" "$c1" "$v1" "$c2" "$l2" "$c2" "$v2"
 }
 
-# Barra de progresso: [████████░░░░░░░░] 50%
+# Barra de progresso: [████████░░░░░░░░] 50% (fallback ASCII se sem UTF-8)
 # Uso: progress_bar 50 100 20
 progress_bar() {
     local current="$1" total="$2" width="${3:-20}"
@@ -211,10 +228,12 @@ progress_bar() {
     local pct=$((current * 100 / total))
     local filled=$((current * width / total))
     local empty=$((width - filled))
-    local bar=""
-    local i
-    for ((i=0; i<filled; i++)); do bar+="█"; done
-    for ((i=0; i<empty; i++)); do bar+="░"; done
+    local bar="" i
+    # escolhe chars conforme suporte UTF
+    local fill_c="█" empty_c="░"
+    if [ "${THICK_T:-}" = "=" ]; then fill_c="#" ; empty_c="-"; fi
+    for ((i=0; i<filled; i++)); do bar+="$fill_c"; done
+    for ((i=0; i<empty; i++)); do bar+="$empty_c"; done
     local color="$GREEN"
     [ "$pct" -gt 80 ] && color="$YELLOW"
     [ "$pct" -gt 95 ] && color="$RED"
@@ -229,10 +248,11 @@ usage_bar() {
     local filled=$((used * width / limit))
     [ "$filled" -gt "$width" ] && filled="$width"
     local empty=$((width - filled))
-    local bar=""
-    local i
-    for ((i=0; i<filled; i++)); do bar+="█"; done
-    for ((i=0; i<empty; i++)); do bar+="░"; done
+    local bar="" i
+    local fill_c="█" empty_c="░"
+    if [ "${THICK_T:-}" = "=" ]; then fill_c="#" ; empty_c="-"; fi
+    for ((i=0; i<filled; i++)); do bar+="$fill_c"; done
+    for ((i=0; i<empty; i++)); do bar+="$empty_c"; done
     local color="$GREEN"
     [ "$pct" -gt 70 ] && color="$YELLOW"
     [ "$pct" -gt 90 ] && color="$RED"

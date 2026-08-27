@@ -3,13 +3,13 @@
 # Gerencia: apps, usuarios, dominios, planos, nodes (multi-VPS)
 
 export OB_HOME="${OB_HOME:-/opt/oracle-bootstrap}"
-export OB_CONFIG_DIR="${OB_HOME}/config"
-export OB_APPS_FILE="${OB_CONFIG_DIR}/apps.json"
-export OB_USERS_FILE="${OB_CONFIG_DIR}/users.json"
-export OB_DOMAINS_FILE="${OB_CONFIG_DIR}/domains.json"
-export OB_PLANS_FILE="${OB_CONFIG_DIR}/plans.json"
-export OB_NODES_FILE="${OB_CONFIG_DIR}/nodes.json"
-export OB_APPS_DIR="/var/www"
+export OB_CONFIG_DIR="${OB_CONFIG_DIR:-${OB_HOME}/config}"
+export OB_APPS_FILE="${OB_APPS_FILE:-${OB_CONFIG_DIR}/apps.json}"
+export OB_USERS_FILE="${OB_USERS_FILE:-${OB_CONFIG_DIR}/users.json}"
+export OB_DOMAINS_FILE="${OB_DOMAINS_FILE:-${OB_CONFIG_DIR}/domains.json}"
+export OB_PLANS_FILE="${OB_PLANS_FILE:-${OB_CONFIG_DIR}/plans.json}"
+export OB_NODES_FILE="${OB_NODES_FILE:-${OB_CONFIG_DIR}/nodes.json}"
+export OB_APPS_DIR="${OB_APPS_DIR:-/var/www}"
 export OB_REPO_URL="https://github.com/Fast4gc/hadix.app"
 export OB_RAW_URL="https://raw.githubusercontent.com/Fast4gc/hadix.app/main"
 
@@ -44,12 +44,12 @@ json_number() {
 # Inicializacao: cria arquivos JSON vazios se nao existirem
 # ---------------------------------------------------------------------------
 ob_config_init() {
-    mkdir -p "$OB_CONFIG_DIR" "$OB_APPS_DIR"
-    [ -f "$OB_APPS_FILE" ]    || echo '{}' > "$OB_APPS_FILE"
-    [ -f "$OB_USERS_FILE" ]   || echo '{}' > "$OB_USERS_FILE"
-    [ -f "$OB_DOMAINS_FILE" ] || echo '{}' > "$OB_DOMAINS_FILE"
-    [ -f "$OB_PLANS_FILE" ]   || echo '{}' > "$OB_PLANS_FILE"
-    [ -f "$OB_NODES_FILE" ]   || echo '[]' > "$OB_NODES_FILE"
+    mkdir -p "$OB_CONFIG_DIR" "$OB_APPS_DIR" 2>/dev/null || true
+    [ -f "$OB_APPS_FILE" ]    || echo '{}' > "$OB_APPS_FILE" 2>/dev/null || true
+    [ -f "$OB_USERS_FILE" ]   || echo '{}' > "$OB_USERS_FILE" 2>/dev/null || true
+    [ -f "$OB_DOMAINS_FILE" ] || echo '{}' > "$OB_DOMAINS_FILE" 2>/dev/null || true
+    [ -f "$OB_PLANS_FILE" ]   || echo '{}' > "$OB_PLANS_FILE" 2>/dev/null || true
+    [ -f "$OB_NODES_FILE" ]   || echo '[]' > "$OB_NODES_FILE" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------
