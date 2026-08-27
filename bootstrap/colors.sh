@@ -55,13 +55,34 @@ RIGHT='→'; DOT='•'; SEARCH='⌕'; SPIN='⟳'
 
 # Fallback ASCII quando o terminal/localidade nao renderiza UTF-8 corretamente.
 # Evita saidas como "��������" em consoles web/SSH mal configurados.
+_OB_UTF_OK=true
+# 1) verifica variavel de locale
 _OB_LOCALE_CHECK="${LC_ALL:-${LC_CTYPE:-${LANG:-}}}"
 if ! printf '%s' "$_OB_LOCALE_CHECK" | tr '[:upper:]' '[:lower:]' | grep -Eq 'utf-?8'; then
+    _OB_UTF_OK=false
+fi
+# 2) verifica locale charmap real (mais confiavel)
+if command -v locale >/dev/null 2>&1; then
+    _OB_CHARMAP="$(locale charmap 2>/dev/null || echo "")"
+    if [ -n "$_OB_CHARMAP" ] && ! printf '%s' "$_OB_CHARMAP" | grep -qi "UTF-8"; then
+        _OB_UTF_OK=false
+    fi
+fi
+# 3) se saida nao e TTY ou TERM=dumb, preferir ASCII
+if [ ! -t 1 ] || [ "${TERM:-}" = "dumb" ]; then
+    # mantem UTF se ja OK, mas garante fallback em web console sem TTY que quebra
+    if [ "$_OB_UTF_OK" != "true" ]; then _OB_UTF_OK=false; else true; fi
+fi
+# Permite forcar UTF/ASCII via env
+[ "${HADIX_FORCE_ASCII:-}" = "1" ] && _OB_UTF_OK=false
+[ "${HADIX_FORCE_UTF8:-}" = "1" ] && _OB_UTF_OK=true
+
+if [ "$_OB_UTF_OK" != "true" ]; then
     THIN_T='-'; THIN_V='|'
     THICK_T='='; THICK_V='|'
     CORNER_UL='+'; CORNER_UR='+'; CORNER_DL='+'; CORNER_DR='+'
     BOX_TL='+'; BOX_TR='+'; BOX_BL='+'; BOX_BR='+'
-    TICK='OK'; CROSS='X'; WARN='!'; INFO='i'
+    TICK='[OK]'; CROSS='[X]'; WARN='[!]'; INFO='[i]'
     RIGHT='>'; DOT='-'; SEARCH='?'; SPIN='*'
 fi
 

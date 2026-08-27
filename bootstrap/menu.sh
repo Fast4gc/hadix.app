@@ -62,21 +62,64 @@ create_menu() {
     read -r -p "Pressione ENTER para continuar..."
 }
 
+pick_app_name() {
+    # Se houver apps registrados, mostra lista numerada e permite escolher por numero ou nome
+    local apps; apps="$(ob_apps_list 2>/dev/null)"
+    if [ -z "$apps" ]; then
+        ask "Nome do app" ""
+        return
+    fi
+    local idx=1
+    declare -A map
+    echo ""
+    echo -e "  ${SKY}${BOLD}Apps registrados:${NC}"
+    while read -r app; do
+        [ -z "$app" ] && continue
+        local type port status
+        type="$(jq -r --arg n "$app" '.[$n].type // "-"' "$OB_APPS_FILE" 2>/dev/null)"
+        port="$(jq -r --arg n "$app" '.[$n].port // 0' "$OB_APPS_FILE" 2>/dev/null)"
+        status="$(jq -r --arg n "$app" '.[$n].status // "-"' "$OB_APPS_FILE" 2>/dev/null)"
+        printf "    ${CYAN}%2s${NC}  ${WHITE}%-18s${NC} ${GRAY}%s${NC} ${DIM}porta %s${NC} ${GRAY}[%s]${NC}\n" "$idx" "$app" "$type" "$port" "$status"
+        map[$idx]="$app"
+        idx=$((idx+1))
+    done <<< "$apps"
+    echo ""
+    local input
+    input="$(ask "Escolha numero ou digite nome (0=cancelar)" "")"
+    if [[ "$input" =~ ^[0-9]+$ ]] && [ "$input" -ge 1 ] && [ "$input" -lt "$idx" ]; then
+        echo "${map[$input]}"
+    elif [ "$input" = "0" ] || [ -z "$input" ]; then
+        echo ""
+    else
+        echo "$input"
+    fi
+}
+
 manage_menu() {
     clear
     rule "Gerenciar apps" "$GRAY"
     echo ""
-    if [ "$(ob_apps_list | wc -l)" -gt 0 ]; then
-        section_title "Apps registrados" "$SKY"
+    local count
+    count="$(ob_apps_count 2>/dev/null || echo 0)"
+    if [ "$count" -gt 0 ]; then
+        section_title "Apps registrados ($count)" "$SKY"
+        # preview rapido ja feito por pick_app_name depois
+        local i=1
         while read -r app; do
-            echo -e "  ${GRAY}${DOT}${NC} ${WHITE}${app}${NC}"
+            [ -z "$app" ] && continue
+            local type status
+            type="$(jq -r --arg n "$app" '.[$n].type // "-"' "$OB_APPS_FILE" 2>/dev/null)"
+            status="$(jq -r --arg n "$app" '.[$n].status // "-"' "$OB_APPS_FILE" 2>/dev/null)"
+            local sc="$GREEN"; [ "$status" != "active" ] && sc="$YELLOW"
+            printf "  ${GRAY}${DOT}${NC} ${WHITE}%-18s${NC} ${CYAN}%-8s${NC} ${sc}%s${NC}\n" "$app" "$type" "$status"
         done <<< "$(ob_apps_list)"
     else
         echo -e "  ${YELLOW}${WARN}${NC}  Nenhum app registrado ainda."
+        echo -e "  ${DIM}Dica: crie via 'Criar novo projeto' ou registre manualmente em /var/www${NC}"
     fi
     echo ""
-    menu_item "1" "Reiniciar app"
-    menu_item "2" "Ver logs"
+    menu_item "1" "Reiniciar app" "pm2/docker/systemd"
+    menu_item "2" "Ver logs" "100 linhas, segue se TTY"
     menu_item "3" "Backup de app (ou todos)"
     menu_item "4" "Remover app"
     menu_item "5" "Emitir/renovar SSL"
@@ -86,10 +129,10 @@ manage_menu() {
     choice="$(ask "Escolha" "")"
     local name
     case "$choice" in
-        1) name="$(ask "Nome do app" "")"; bash "${OB_HOME}/commands/restart.sh" "$name" ;;
-        2) name="$(ask "Nome do app" "")"; bash "${OB_HOME}/commands/logs.sh" "$name" ;;
-        3) name="$(ask "Nome do app (vazio = todos)" "")"; bash "${OB_HOME}/commands/backup.sh" "$name" ;;
-        4) name="$(ask "Nome do app" "")"; bash "${OB_HOME}/commands/remove.sh" "$name" ;;
+        1) name="$(pick_app_name)"; [ -n "$name" ] && bash "${OB_HOME}/commands/restart.sh" "$name" ;;
+        2) name="$(pick_app_name)"; [ -n "$name" ] && bash "${OB_HOME}/commands/logs.sh" "$name" ;;
+        3) name="$(pick_app_name)"; bash "${OB_HOME}/commands/backup.sh" "$name" ;;
+        4) name="$(pick_app_name)"; [ -n "$name" ] && bash "${OB_HOME}/commands/remove.sh" "$name" ;;
         5) name="$(ask "Dominio" "")"; bash "${OB_HOME}/commands/ssl.sh" "$name" ;;
        0|*) return ;;
     esac
