@@ -308,7 +308,7 @@ case "$FOUND_KIND" in
     *)
         # Nenhuma fonte encontrada — saida estruturada p/ frontend
         ERR_MSG="Nao encontrei logs para '${NAME_RAW}' (pm2/docker/systemd/nginx/arquivos)."
-        HINT="Verifique: 1) pm2 list | grep ${NAME_RAW}  2) ls /var/www/  3) Atividade → Deployments e se MAIN/START estao corretos."
+        HINT="Se o app foi publicado via hadix.site, rode: bootstrap start ${NAME_RAW}   (ou: 1) pm2 list | grep ${NAME_RAW}  2) ls /var/www/  3) Atividade → Deployments e se MAIN/START estao corretos)."
         # lista o que foi tentado
         TRIED="tentativas: $(printf '%s, ' "${CANDIDATES[@]}" | sed 's/, $//')"
         if [ "$JSON_OUT" = true ]; then

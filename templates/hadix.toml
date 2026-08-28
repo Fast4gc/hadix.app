@@ -1,0 +1,32 @@
+# hadix.toml — manifesto de app no padrao Discloud/Squarecloud
+# Quando um app e criado em /var/www/<app>, este arquivo descreve como roda.
+#
+# Campos uteis (substituidos pelos scripts commands/*.sh via __PLACEHOLDER__):
+#   __APP_NAME__  __APP_TYPE__  __APP_PATH__  __APP_START__  __APP_PORT__  __APP_DOMAIN__
+#
+# type: bot | site | api | worker
+# start: comando (Ex: npm start, node index.js, python bot.py, pnpm start)
+# port: 0 = nao exposto via proxy (bots/site estatico) ; >0 = proxy nginx
+
+id = "__APP_NAME__"
+name = "__APP_NAME__"
+type = "__APP_TYPE__"          # bot|site|api|worker
+main = "index.js"              # arquivo principal (detecta linguagem)
+start = "__APP_START__"        # comando start
+port = __APP_PORT__            # 0 = sem proxy externo
+domain = "__APP_DOMAIN__"      # dominio publico (opcional)
+pm2 = true                     # gerenciar via pm2 (ou systemd)
+restart_on_crash = true
+created = 0
+
+[limits]
+memoryMB = 512
+cpus = 1
+
+[env]
+# Copie as variaveis deste app (o .env real fica em ~/.env, perm 600)
+TOKEN = ""
+
+[logs]
+out = "__APP_PATH__/.hadix/out.log"
+error = "__APP_PATH__/.hadix/err.log"

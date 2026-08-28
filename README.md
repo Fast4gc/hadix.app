@@ -37,6 +37,10 @@ bootstrap create-bot meu-bot       # Bot Discord/Telegram/Python + pm2
 bootstrap create-site meu-site     # Site estático + nginx
 bootstrap create-worker fila-jobs  # Worker em background + pm2
 bootstrap list                     # lista apps gerenciados
+bootstrap status [app] [--json]    # status de apps (tipo, processo, porta, dominio)
+bootstrap production               # configura a VPS p/ hospedar bots/sites (Discloud/Squarecloud)
+bootstrap production --check       # status da stack de hosting (sem alterar)
+bootstrap production --dry-run     # simula sem alterar nada
 bootstrap vps /var/www             # navegador da VPS: arquivos, deploy, nginx e pm2
 bootstrap dashboard                # painel central: contas, planos, bots, nodes
 bootstrap dashboard users          # lista contas/usuarios do hadix.site
@@ -50,6 +54,7 @@ bootstrap front status             # ping e status da VPS ate https://hadix.site
 bootstrap front prod               # exporta o front em producao (build + nginx/pm2)
 bootstrap front dev                # roda o front em modo desenvolvimento
 bootstrap logs <nome>              # logs (pm2/docker/nginx)
+bootstrap start <nome>             # sobe/provisiona um app registrado (pm2 + deps)
 bootstrap restart <nome>           # reinicia
 bootstrap backup [nome]            # backup (todos, se omitido)
 bootstrap restore <arquivo.tar.gz> # restaura backup
@@ -63,6 +68,47 @@ bootstrap uninstall                # desinstala o oracle-bootstrap
 ## Painel Hadix.app
 
 O painel inclui opções numeradas para instalar componentes, criar projetos, navegar pelos arquivos da VPS, gerenciar apps, listar apps, monitorar a VPS, exportar o front (`hadix.site`) em produção ou desenvolvimento, atualizar sem reinstalar e abrir ajuda. O cabeçalho do painel carrega um ping automático até `https://hadix.site` e mostra uma bolha de status: **VPS OK** (latência normal), **VPS COM DELAY** (acima de 800ms) ou **VPS OFFLINE**. Nas telas interativas, use `0` para voltar/sair; no monitor ao vivo, `Ctrl+C` retorna ao fluxo.
+
+O menu principal é organizado em **seções** (HOSTING, CRIAR, GERENCIAR, SISTEMA) e já mostra uma linha de status de hosting (se a stack está pronta, nº de apps e ping do front) para você ver de relance se a VPS está "em produção".
+
+## Produzindo a VPS como plataforma de hosting
+
+`bootstrap production` transforma a VPS em uma plataforma de hospedagem de **bots e sites** no estilo Discloud/Squarecloud. É idempotente — pode rodar quantas vezes quiser sem quebrar nada:
+
+- **Stack completa**: nginx, Node, pnpm, pm2, Docker, Redis, Postgres, ufw (22/80/443), fail2ban, Certbot (SSL) e Netdata (monitor).
+- **Estrutura de hosting**: `/var/www`, `/var/hadix/{domains,ssl,logs,backups,envs}`.
+- **Usuário `hadix`** (não-root) com pm2 próprio + boot persistente via systemd (`pm2-hadix.service`) — mais seguro para rodar apps.
+- **Nginx presets** de proxy/static/websocket para bots e sites.
+- **Manifesto `hadix.toml`** por app (padrão Discloud/Squarecloud: `type`, `start`, `port`, `domain`, `pm2`, `[limits]`, `[env]`) gerado automaticamente para apps existentes sem sobrescrever os já criados.
+- **`/var/hadix/host.json`**: manifesto da VPS (recursos + IP + contagem de apps) consumível pelo front `hadix.site`.
+
+```bash
+bootstrap production              # configurar (idempotente)
+bootstrap production --check      # ver o que ja esta instalado/ativo
+bootstrap production --dry-run    # simular sem alterar
+bootstrap production --reset      # refazer configs mantendo os apps
+bootstrap status                  # tabela de apps (tipo, processo, porta, dominio)
+bootstrap status meu-app          # detalhe do app + hadix.toml
+bootstrap status --json           # saida JSON p/ o frontend
+```
+
+## Sobe um app (bootstrap start)
+
+O comando `bootstrap start <nome>` garante que um app registrado em `apps.json`
+fique **online**: cria a pasta `/var/www/<nome>` se faltar, escreve arquivos
+starter (package.json, main, .env) quando o código ainda não foi enviado, instala
+as dependências e inicia via pm2 com o mesmo nome do app. Isso faz com que
+`bootstrap logs <nome>` e `bootstrap status <nome>` passem a resolver o processo.
+
+```bash
+bootstrap start meu-bot              # cria/instala/inicia (idempotente)
+bootstrap start meu-bot --no-install # nao roda npm install
+bootstrap start meu-bot --skip-files # nao cria starter em pasta vazia
+```
+
+O `vps-api` (server.js) chama `hadix start <nome>` automaticamente quando o
+front `hadix.site` registra um app via `/config/apps/add`, então bots/sites
+publicados passam a subir sozinhos.
 
 ## Dashboard Central (bootstrap dashboard)
 
@@ -188,7 +234,7 @@ hadix.app/
 
 ## Versões
 
-A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.4.0`)
+A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.5.2.0`)
 e é a fonte única usada pelo painel, `bootstrap version`, `bootstrap --help`
 e pelo aviso de atualização. O `update.sh` baixa o `VERSION` novo do
 repositório, compara com a instalada e mostra o diff. Para atualizar o branch:
