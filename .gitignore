@@ -1,2 +1,5 @@
 .vscode/
 dashboard/web/node_modules/
+
+# estado runtime da VPS (apps/usuarios/planos/nodes) — nao versionar
+config/
