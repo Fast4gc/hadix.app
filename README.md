@@ -54,6 +54,7 @@ bootstrap front status             # ping e status da VPS ate https://hadix.site
 bootstrap front prod               # exporta o front em producao (build + nginx/pm2)
 bootstrap front dev                # roda o front em modo desenvolvimento
 bootstrap logs <nome>              # logs (pm2/docker/nginx)
+bootstrap start <nome>             # sobe/provisiona um app registrado (pm2 + deps)
 bootstrap restart <nome>           # reinicia
 bootstrap backup [nome]            # backup (todos, se omitido)
 bootstrap restore <arquivo.tar.gz> # restaura backup
@@ -90,6 +91,24 @@ bootstrap status                  # tabela de apps (tipo, processo, porta, domin
 bootstrap status meu-app          # detalhe do app + hadix.toml
 bootstrap status --json           # saida JSON p/ o frontend
 ```
+
+## Sobe um app (bootstrap start)
+
+O comando `bootstrap start <nome>` garante que um app registrado em `apps.json`
+fique **online**: cria a pasta `/var/www/<nome>` se faltar, escreve arquivos
+starter (package.json, main, .env) quando o código ainda não foi enviado, instala
+as dependências e inicia via pm2 com o mesmo nome do app. Isso faz com que
+`bootstrap logs <nome>` e `bootstrap status <nome>` passem a resolver o processo.
+
+```bash
+bootstrap start meu-bot              # cria/instala/inicia (idempotente)
+bootstrap start meu-bot --no-install # nao roda npm install
+bootstrap start meu-bot --skip-files # nao cria starter em pasta vazia
+```
+
+O `vps-api` (server.js) chama `hadix start <nome>` automaticamente quando o
+front `hadix.site` registra um app via `/config/apps/add`, então bots/sites
+publicados passam a subir sozinhos.
 
 ## Dashboard Central (bootstrap dashboard)
 

@@ -16,15 +16,16 @@ term_width() {
 repeat_char() {
     local count="$1" ch="$2"
     [ "$count" -lt 0 ] && count=0
-    # se ch for multi-char UTF-8, tr nao funciona bem -> usa loop
-    if [ "${#ch}" -gt 1 ] || [[ "$ch" == *"�"* ]]; then
-        # fallback ASCII ja definido em colors.sh
-        ch="-"
-    fi
-    if [ "${#ch}" -eq 1 ]; then
-        printf '%*s' "$count" '' | tr ' ' "$ch"
+    # detecta multi-byte pela contagem de BYTES (LC_ALL=C), pois "${#ch}" conta chars
+    local bytes
+    bytes="$(LC_ALL=C printf '%s' "$ch" | wc -c)"
+    if [ "$bytes" -gt 1 ]; then
+        # multi-byte (UTF-8): monta via loop — tr nao suporta chars multibyte
+        local out="" i
+        for ((i=0;i<count;i++)); do out+="$ch"; done
+        printf '%s' "$out"
     else
-        local out=""; local i; for ((i=0;i<count;i++)); do out+="$ch"; done; printf '%s' "$out"
+        printf '%*s' "$count" '' | tr ' ' "$ch"
     fi
 }
 

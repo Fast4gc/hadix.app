@@ -14,7 +14,7 @@ ob_config_init
 trap 'echo; echo -e "${YELLOW}Voltando ao painel Hadix.app...${NC}"; sleep 1' INT
 
 # ================================================================ helpers de layout
-menu_br() { echo -e "  ${GRAY}${THIN_T}$(repeat_char 68 "$THIN_T")${NC}"; }
+menu_br() { echo -e "  ${GRAY}${THIN_T}$(repeat_char 70 "$THIN_T")${NC}"; }
 
 menu_header() {
     # Titulo do grupo (ex: ── Hosting ──)
