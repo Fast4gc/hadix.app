@@ -16,6 +16,7 @@ source "${OB_HOME}/bootstrap/config.sh" 2>/dev/null || true
 command -v ob_config_init >/dev/null 2>&1 && ob_config_init || true
 
 # ---------- parse args ----------
+ORIG_ARGS=("$@")
 NAME_RAW=""
 LINES=100
 FOLLOW="auto"   # auto = segue se TTY, senao nostream
@@ -295,6 +296,9 @@ handle_path() {
     return 1
 }
 
+# ---------- auto-start (se app registrado mas sem processo) ----------
+AUTO_STARTED="${AUTO_STARTED:-0}"
+
 case "$FOUND_KIND" in
     pm2) handle_pm2 "$FOUND_VAL" ;;
     pm2user)
@@ -306,6 +310,23 @@ case "$FOUND_KIND" in
     nginx) handle_nginx "$FOUND_VAL" ;;
     path) handle_path "$FOUND_VAL" ;;
     *)
+        # Auto-start: se app registrado/pasta existe mas sem processo, inicia automaticamente
+        if [ "$AUTO_STARTED" -eq 0 ]; then
+            _can_start=false
+            if command -v ob_apps_get >/dev/null 2>&1; then
+                _info="$(ob_apps_get "$NAME_RAW" 2>/dev/null)"
+                [ -n "$_info" ] && [ "$_info" != "null" ] && _can_start=true
+            fi
+            if [ "$_can_start" = false ] && [ -d "${OB_APPS_DIR:-/var/www}/${NAME_RAW}" ]; then
+                _can_start=true
+            fi
+            if [ "$_can_start" = true ]; then
+                echo -e "  ${CYAN}${SPIN}${NC} App registrado mas sem processo — iniciando..." >&2
+                bash "${OB_HOME}/commands/start.sh" "$NAME_RAW" --no-install >/dev/null 2>&1 || true
+                # re-executa com flag para evitar loop
+                exec env AUTO_STARTED=1 bash "$0" "${ORIG_ARGS[@]}"
+            fi
+        fi
         # Nenhuma fonte encontrada — saida estruturada p/ frontend
         ERR_MSG="Nao encontrei logs para '${NAME_RAW}' (pm2/docker/systemd/nginx/arquivos)."
         HINT="Se o app foi publicado via hadix.site, rode: bootstrap start ${NAME_RAW}   (ou: 1) pm2 list | grep ${NAME_RAW}  2) ls /var/www/  3) Atividade → Deployments e se MAIN/START estao corretos)."
