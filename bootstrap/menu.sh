@@ -173,19 +173,20 @@ pick_app_name() {
     fi
     local idx=1
     declare -A map
-    echo ""
-    echo -e "  ${SKY}${BOLD}Apps registrados:${NC}"
+    # UI vai para stderr para nao contaminar o valor capturado em $(pick_app_name)
+    echo "" >&2
+    echo -e "  ${SKY}${BOLD}Apps registrados:${NC}" >&2
     while read -r app; do
         [ -z "$app" ] && continue
         local type port status
         type="$(jq -r --arg n "$app" '.[$n].type // "-"' "$OB_APPS_FILE" 2>/dev/null)"
         port="$(jq -r --arg n "$app" '.[$n].port // 0' "$OB_APPS_FILE" 2>/dev/null)"
         status="$(jq -r --arg n "$app" '.[$n].status // "-"' "$OB_APPS_FILE" 2>/dev/null)"
-        printf "    ${CYAN}%2s${NC}  ${WHITE}%-18s${NC} ${GRAY}%s${NC} ${DIM}porta %s${NC} ${GRAY}[%s]${NC}\n" "$idx" "$app" "$type" "$port" "$status"
+        printf "    ${CYAN}%2s${NC}  ${WHITE}%-18s${NC} ${GRAY}%s${NC} ${DIM}porta %s${NC} ${GRAY}[%s]${NC}\n" "$idx" "$app" "$type" "$port" "$status" >&2
         map[$idx]="$app"
         idx=$((idx+1))
     done <<< "$apps"
-    echo ""
+    echo "" >&2
     local input
     input="$(ask "Escolha numero ou digite nome (0=cancelar)" "")"
     if [[ "$input" =~ ^[0-9]+$ ]] && [ "$input" -ge 1 ] && [ "$input" -lt "$idx" ]; then
@@ -283,7 +284,7 @@ main_menu() {
             4) bash "${OB_HOME}/commands/front.sh" ;;
             5) create_menu ;;
             6) installers_menu ;;
-            7) bash "${OB_HOME}/commands/status.sh" ;;
+            7) bash "${OB_HOME}/commands/status.sh"; read -r -p "Pressione ENTER para continuar..." ;;
             8) manage_menu ;;
             9) bash "${OB_HOME}/commands/vps.sh" ;;
             10) bash "${OB_HOME}/bootstrap/bootstrap.sh" --help; read -r -p "Pressione ENTER para voltar..." ;;
