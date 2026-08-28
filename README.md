@@ -234,7 +234,7 @@ hadix.app/
 
 ## Versões
 
-A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.4.0`)
+A versão fica no arquivo `VERSION` da raiz do repositório (SemVer, ex: `1.5.2.0`)
 e é a fonte única usada pelo painel, `bootstrap version`, `bootstrap --help`
 e pelo aviso de atualização. O `update.sh` baixa o `VERSION` novo do
 repositório, compara com a instalada e mostra o diff. Para atualizar o branch:

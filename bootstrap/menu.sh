@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# menu.sh — painel interativo do Hadix.app (visual profissional, secoes agrupadas)
+# menu.sh — painel interativo do Hadix.app (estilo TMY-SSH-PRO)
+# Layout robusto com figlet/lolcat, caixas coloridas, secoes agrupadas.
 set -uo pipefail
 
 OB_HOME="${OB_HOME:-/opt/oracle-bootstrap}"
@@ -13,30 +14,101 @@ ob_config_init
 
 trap 'echo; echo -e "${YELLOW}Voltando ao painel Hadix.app...${NC}"; sleep 1' INT
 
-# ================================================================ helpers de layout
-menu_br() { echo -e "  ${GRAY}${THIN_T}$(repeat_char 70 "$THIN_T")${NC}"; }
+# ================================================================ helpers TMY
+HAS_FIGLET=false; command -v figlet >/dev/null 2>&1 && HAS_FIGLET=true
+HAS_LOLCAT=false; command -v lolcat >/dev/null 2>&1 && HAS_LOLCAT=true
 
-menu_header() {
-    # Titulo do grupo (ex: ── Hosting ──)
-    local label="$1"
-    echo ""
-    echo -e "  ${SKY}${BOLD}${label}${NC}"
-    echo -e "  ${SKY}${THIN_T}$(repeat_char 70 "$THIN_T")${NC}"
+# Banner com fallback ASCII (estilo TMY)
+show_banner() {
+    local ver="$1" update="$2"
+    if $HAS_FIGLET; then
+        if $HAS_LOLCAT; then
+            figlet -k "HADIX.APP" 2>/dev/null | lolcat
+        else
+            figlet -k "HADIX.APP" 2>/dev/null
+            echo -e "${MAGENTA}${BOLD}"
+        fi
+    else
+        echo -e "${MAGENTA}${BOLD}"
+        cat << 'ASCII'
+   _   _           _ _            _       _
+  | | | | __ _  __| (_)_  __   __| | __ _| |_ __ _
+  | |_| |/ _` |/ _` | \ \/ /  / _` |/ _` | __/ _` |
+  |  _  | (_| | (_| | |>  <  | (_| | (_| | || (_| |
+  |_| |_|\__,_|\__,_|_/_/\_\  \__,_|\__,_|\__\__,_|
+ASCII
+    fi
+    echo -e "${NC}"
+    # versao + update
+    if [ -n "$update" ]; then
+        echo -e "  ${YELLOW}${WARN}${NC} ${GOLD}Versao ${ver}${NC} ${GRAY}${DOT}${NC} ${YELLOW}disponivel: ${BOLD}${update}${NC} ${GRAY}(rode 'hadix update')${NC}"
+    else
+        echo -e "  ${DIM}Versao ${BOLD}${ver}${NC}  ${GRAY}${DOT}${NC}  ${DIM}Hadix.app — VPS Platform${NC}"
+    fi
 }
 
-menu_item_alias() { # numero | principal | secundario | nota
+# Caixa de titulo grossa (estilo TMY — ╔═╗)
+thick_box() {
+    local text="$1" color="${2:-${MAGENTA}}"
+    local w=66
+    echo -e "${color}${THICK_T}${THICK_T}$(repeat_char $((w - 4)) "$THICK_T")${THICK_T}${THICK_T}${NC}"
+    echo -e "${color}${THICK_V}${NC}  ${BOLD}${text}$(repeat_char $((w - ${#text} - 8)) ' ')${color}${THICK_V}${NC}"
+    echo -e "${color}${THICK_T}${THICK_T}$(repeat_char $((w - 4)) "$THICK_T")${THICK_T}${THICK_T}${NC}"
+}
+
+# Separador de secao (─ ou =)
+sec_br() {
+    local color="${1:-${GRAY}}"
+    echo -e "  ${color}$(repeat_char 66 "${THIN_T}")${NC}"
+}
+
+# Titulo de secao com estilo (ex: ═══ HOSTING ═══)
+sec_title() {
+    local label="$1" color="${2:-${SKY}}"
+    echo ""
+    echo -e "  ${color}${BOLD}${label}${NC}"
+    echo -e "  ${color}$(repeat_char 66 "${THIN_T}")${NC}"
+}
+
+# Item de menu com numero, descricao e nota colorida
+menu_item() {
     local num="$1" desc="$2" note="${3:-}"
     if [ -n "$note" ]; then
-        printf "  ${CYAN}%2s${NC}  %-42s ${GRAY}%s${NC}\n" "$num" "$desc" "$note"
+        printf "  ${CYAN}%2s${NC}  %-38s ${GRAY}%s${NC}\n" "$num" "$desc" "$note"
     else
         printf "  ${CYAN}%2s${NC}  %s\n" "$num" "$desc"
     fi
 }
 
-# ================================================================ menus internos
+# Footer padrao de menu
+menu_footer() {
+    echo ""
+    echo -e "  ${DIM}Digite o numero da opcao e ENTER.  0 para sair/voltar.${NC}"
+    echo ""
+}
+
+# Linha de status do sistema (estilo dashboard)
+status_line() {
+    local ready_icon prod_note
+    if command_exists nginx && command_exists node && command_exists pm2; then
+        prod_note="${GREEN}${TICK} Producao pronta${NC}"
+    else
+        prod_note="${RED}${CROSS} Rode 'production'${NC}"
+    fi
+    local app_count
+    app_count="$(ob_apps_count 2>/dev/null || echo 0)"
+    local ping_info
+    ping_info="$(ping_badge "$(vps_ping 2>/dev/null || echo '0 offline')")"
+    echo ""
+    echo -e "  ${GRAY}${DOT}${NC} Hosting: ${prod_note}   ${GRAY}|${NC} Apps: ${BOLD}${app_count}${NC}   ${GRAY}|${NC} ${ping_info}"
+    sec_br
+}
+
+# ================================================================ submenus
 installers_menu() {
     clear
-    rule "Instaladores" "$GRAY"
+    echo ""
+    fly_box "Instaladores" "$GRAY"
     echo ""
     local list=(docker nginx node pnpm bun postgres redis fail2ban ufw cloudflare ssl pm2 github certbot monitoring)
     local i=1
@@ -55,9 +127,19 @@ installers_menu() {
     fi
 }
 
+# Caixa simples (fly) para menus internos
+fly_box() {
+    local text="$1" color="${2:-${GRAY}}"
+    local w=66
+    echo -e "${color}${THIN_T}${THIN_T}$(repeat_char $((w - 4)) "$THIN_T")${THIN_T}${THIN_T}${NC}"
+    echo -e "${color}${THIN_V}${NC}  ${BOLD}${text}$(repeat_char $((w - ${#text} - 8)) ' ')${color}${THIN_V}${NC}"
+    echo -e "${color}${THIN_T}${THIN_T}$(repeat_char $((w - 4)) "$THIN_T")${THIN_T}${THIN_T}${NC}"
+}
+
 create_menu() {
     clear
-    rule "Criar novo projeto" "$GRAY"
+    echo ""
+    fly_box "Criar novo projeto" "$CYAN"
     echo ""
     menu_item "1" "API (Node/Express)" "nginx + pm2"
     menu_item "2" "Bot (Discord/Telegram)" "pm2"
@@ -84,7 +166,6 @@ create_menu() {
 }
 
 pick_app_name() {
-    # Se houver apps registrados, mostra lista numerada e permite escolher por numero ou nome
     local apps; apps="$(ob_apps_list 2>/dev/null)"
     if [ -z "$apps" ]; then
         ask "Nome do app" ""
@@ -118,12 +199,14 @@ pick_app_name() {
 
 manage_menu() {
     clear
-    rule "Gerenciar apps" "$GRAY"
+    echo ""
+    fly_box "Gerenciar apps" "$SKY"
     echo ""
     local count
     count="$(ob_apps_count 2>/dev/null || echo 0)"
     if [ "$count" -gt 0 ]; then
-        section_title "Apps registrados ($count)" "$SKY"
+        echo -e "  ${BOLD}${SKY}Apps registrados (${count})${NC}"
+        sec_br "$SKY"
         local i=1
         while read -r app; do
             [ -z "$app" ] && continue
@@ -161,51 +244,34 @@ manage_menu() {
     read -r -p "Pressione ENTER para continuar..."
 }
 
-# ================================================================ status strip
-status_line() {
-    # prod-ready check
-    local ready_icon prod_note
-    if command_exists nginx && command_exists node && command_exists pm2; then
-        prod_note="${GREEN}${TICK} Producao pronta${NC}"
-    else
-        prod_note="${RED}${CROSS} Rode 'production'${NC}"
-    fi
-
-    printf "  ${GRAY}${DOT}${NC} Hosting: %s   ${GRAY}|${NC} ${DIM}apps${NC} %s   ${GRAY}|${NC} Front ${SKY}%s${NC}  %s\n" \
-        "$prod_note" \
-        "$(ob_apps_count 2>/dev/null || echo 0)" \
-        "${OB_FRONT_URL:-https://hadix.site}" \
-        "$(ping_badge "$(vps_ping 2>/dev/null || echo '0 offline')")"
-}
-
 # ================================================================ main
 main_menu() {
     local update_available="$(ob_version_check)"
     while true; do
         clear
-        panel_header "$(ob_version)" "$update_available"
+        show_banner "$(ob_version)" "$update_available"
         status_line
-        menu_br
 
-        menu_header "HOSTING"
-        menu_item_alias "1 " "Colocar VPS em producao" "stack completa → hospedar bots/sites"
-        menu_item_alias "2 " "Dashboard central" "contas, planos, apps, nodes"
-        menu_item_alias "3 " "Monitorar VPS" "--watch"
-        menu_item_alias "4 " "Front hadix.site" "prod / dev / ping"
+        sec_title "HOSTING" "$GREEN"
+        menu_item "1 " "Colocar VPS em producao" "stack completa → hospedar bots/sites"
+        menu_item "2 " "Dashboard central" "contas, planos, apps, nodes"
+        menu_item "3 " "Monitorar VPS" "--watch"
+        menu_item "4 " "Front hadix.site" "prod / dev / ping"
 
-        menu_header "CRIAR"
-        menu_item_alias "5 " "Criar novo projeto" "api, bot, site, worker, template"
-        menu_item_alias "6 " "Instalar componentes" "docker, nginx, node, ..."
+        sec_title "CRIAR" "$SKY"
+        menu_item "5 " "Criar novo projeto" "api, bot, site, worker, template"
+        menu_item "6 " "Instalar componentes" "docker, nginx, node, ..."
 
-        menu_header "GERENCIAR"
-        menu_item_alias "7 " "Ver status dos apps" "tabela tipo/processo/porta"
-        menu_item_alias "8 " "Gerenciar apps existentes" "logs, restart, backup, ssl"
-        menu_item_alias "9 " "Navegar VPS" "arquivos, deploy, nginx, pm2"
+        sec_title "GERENCIAR" "$YELLOW"
+        menu_item "7 " "Ver status dos apps" "tabela tipo/processo/porta"
+        menu_item "8 " "Gerenciar apps existentes" "logs, restart, backup, ssl"
+        menu_item "9 " "Navegar VPS" "arquivos, deploy, nginx, pm2"
 
-        menu_header "SISTEMA"
-        menu_item_alias "10" "Ajuda e comandos rapidos"
-        menu_item_alias "11" "Atualizar Hadix.app"
-        menu_item_alias "0 " "Sair"
+        sec_title "SISTEMA" "$MAGENTA"
+        menu_item "10" "Ajuda e comandos rapidos"
+        menu_item "11" "Iniciar/provisionar app" "sobe app registrado via pm2"
+        menu_item "12" "Atualizar Hadix.app"
+        menu_item "0 " "Sair"
 
         menu_footer
         local choice
@@ -221,8 +287,9 @@ main_menu() {
             8) manage_menu ;;
             9) bash "${OB_HOME}/commands/vps.sh" ;;
             10) bash "${OB_HOME}/bootstrap/bootstrap.sh" --help; read -r -p "Pressione ENTER para voltar..." ;;
-            11) bash "${OB_HOME}/update.sh"; read -r -p "Pressione ENTER para voltar..." ;;
-            0) echo -e "${GREEN}${TICK}${NC} Até mais! Hadix.app encerrado."; echo ""; exit 0 ;;
+            11) bash "${OB_HOME}/commands/start.sh"; read -r -p "Pressione ENTER para continuar..." ;;
+            12) bash "${OB_HOME}/update.sh"; read -r -p "Pressione ENTER para voltar..." ;;
+            0) echo -e "${GREEN}${TICK}${NC} Ate mais! Hadix.app encerrado."; echo ""; exit 0 ;;
             *) ;;
         esac
     done
