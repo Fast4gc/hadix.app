@@ -116,7 +116,21 @@ detect_runtime
 # P0 — VALIDACAO DO ENTRYPOINT
 log_step "[VALIDACAO] Entrypoint: ${MAIN} (${EXT_LANG})"
 [ ! -f "$RUN_MAIN" ] && deploy_fail "Entrypoint '${MAIN}' nao encontrado em ${APP_DIR}."
-[ -f "$APP_DIR/package.json" ] && [ "$RUNTIME" != "node" ] && deploy_fail "Runtime mismatch: arquivo '${MAIN}' (${EXT_LANG}) nao e Node.js, mas ha package.json. Use extensao .js/.mjs/.cjs para Node."
+
+# P0 — VALIDACAO DE COERENCIA RUNTIME <-> PROJETO
+# Impede misturar linguagens: o runtime deve bater com a configuracao do app.
+case "$RUNTIME" in
+  node)
+    # MAIN e Node (.js/.mjs/.cjs) mas o projeto parece Python -> erro de config
+    [ -f "${APP_DIR}/requirements.txt" ] && [ ! -f "$APP_DIR/package.json" ] \
+      && deploy_fail "Runtime mismatch: '$MAIN' e Node.js, mas ha requirements.txt (projeto Python). Use $MAIN com extensao .py ou remova requirements.txt."
+    ;;
+  python)
+    # MAIN e Python (.py) mas o projeto parece Node -> erro de config
+    [ -f "$APP_DIR/package.json" ] && [ ! -f "${APP_DIR}/requirements.txt" ] \
+      && deploy_fail "Runtime mismatch: '$MAIN' e Python, mas ha package.json (projeto Node). Use extensao .js/.mjs/.cjs ou remova package.json."
+    ;;
+esac
 
 # P0 — VERIFICA RUNTIME DISPONIVEL
 command_exists "$RUN_CMD" || deploy_fail "Runtime '${RUN_CMD}' (${EXT_LANG}) nao instalado. Instale com: bootstrap install ${RUNTIME}"
