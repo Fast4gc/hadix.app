@@ -1,17 +1,8 @@
 #!/usr/bin/env bash
-# commands/start.sh — sobe um app no PM2 a partir do registro em apps.json
-# (usado pelo front hadix.site via vps-api, e manualmente via CLI).
+# commands/start.sh — executor inteligente de apps Hadix (Node/Python/Go/etc)
+# Detecta runtime, valida entrypoint, instala deps, gerencia via PM2 com estados
 #
-# O app e registrado em apps.json pelo endpoint /config/apps/add do vps-api
-# (name, type, main, start, port, domain, path). Este comando garante que o
-# processo esteja rodando: cria a pasta se faltar, escreve um starter minimo
-# (caso o codigo ainda nao tenha sido enviado), instala dependencias e inicia
-# via pm2 com o mesmo nome do app. Assim os logs/status passam a funcionar.
-#
-# Uso:
-#   bootstrap start <nome>
-#   bootstrap start <nome> --no-install   # nao roda npm install
-#   bootstrap start <nome> --skip-files   # nao cria starter se pasta vazia
+# Uso: bootstrap start <nome> [--no-install] [--skip-files]
 set -uo pipefail
 OB_HOME="${OB_HOME:-/opt/oracle-bootstrap}"
 source "${OB_HOME}/bootstrap/colors.sh"
@@ -22,403 +13,263 @@ ob_config_init
 
 command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-NAME=""
-DO_INSTALL=true
-SKIP_FILES=false
+NAME=""; DO_INSTALL=true; SKIP_FILES=false
 for arg in "$@"; do
-    case "$arg" in
-        --no-install) DO_INSTALL=false;;
-        --skip-files) SKIP_FILES=true;;
-        --help|-h) echo "Uso: bootstrap start <nome> [--no-install] [--skip-files]"; exit 0;;
-        -*) ;;
-        *) [ -z "$NAME" ] && NAME="$arg";;
-    esac
+  case "$arg" in --no-install) DO_INSTALL=false;; --skip-files) SKIP_FILES=false;; --help|-h) echo "Uso: bootstrap start <nome> [--no-install] [--skip-files]"; exit 0;; -*) ;; *) [ -z "$NAME" ] && NAME="$arg";;
+  esac
 done
-
 [ -z "$NAME" ] && { log_error "Nome do app obrigatorio."; exit 1; }
 NAME="$(slugify "$NAME")"
 
-# --- resolve os metadados do app (apps.json) ---
+# ── resolve metadados ──
 info="$(ob_apps_get "$NAME" 2>/dev/null)"
 if [ -z "$info" ] || [ "$info" = "null" ]; then
-    # fallback sem jq: tenta casar chave no apps.json
-    if command_exists jq; then
-        info=""
-    else
-        info="$(grep -o "\"${NAME}\"[[:space:]]*:[[:space:]]*{[^}]*}" "$OB_APPS_FILE" 2>/dev/null | head -1)"
-    fi
+  [ -f "${OB_APPS_FILE:-}" ] && info="$(grep -o "\"${NAME}\"[[:space:]]*:[[:space:]]*{[^}]*}" "$OB_APPS_FILE" 2>/dev/null | head -1)"
 fi
-# Se nao registrado, ainda permite iniciar a partir de uma pasta existente
-if [ -z "$info" ]; then
-    if [ -d "${OB_APPS_DIR:-/var/www}/${NAME}" ]; then
-        log_info "App '${NAME}' nao esta em apps.json, mas a pasta existe — iniciando pela pasta."
-        APPTYPE="bot"
-        MAIN="index.js"
-        START=""
-        PORT=0
-        DOMAIN=""
-        APP_DIR="${OB_APPS_DIR:-/var/www}/${NAME}"
-        if [ -f "$APP_DIR/package.json" ]; then
-            if command_exists jq; then
-                MAIN="$(jq -r '.main // "index.js"' "$APP_DIR/package.json" 2>/dev/null)"
-                [ "$(jq -r '.scripts.start // empty' "$APP_DIR/package.json" 2>/dev/null)" != "" ] \
-                    && START="$(jq -r '.scripts.start' "$APP_DIR/package.json" 2>/dev/null)"
-            fi
-        fi
-    else
-        log_error "App '${NAME}' nao registrado em apps.json (e pasta ${OB_APPS_DIR:-/var/www}/${NAME} nao existe)."
-        echo "  Registre via: bootstrap status ${NAME}  (ou crie antes com create-*)."
-        exit 1
-    fi
-fi
-
+detect_from_folder() {
+  [ -d "${OB_APPS_DIR:-/var/www}/${NAME}" ] || return 1
+  APP_DIR="${OB_APPS_DIR:-/var/www}/${NAME}"; MAIN="index.js"; START=""; PORT=0; DOMAIN=""
+  [ -f "$APP_DIR/package.json" ] && command_exists jq && {
+    MAIN="$(jq -r '.main // "index.js"' "$APP_DIR/package.json" 2>/dev/null)"
+    [ "$(jq -r '.scripts.start // empty' "$APP_DIR/package.json" 2>/dev/null)" != "" ] && START="$(jq -r '.scripts.start' "$APP_DIR/package.json" 2>/dev/null)"
+  }
+  return 0
+}
+if [ -z "$info" ]; then detect_from_folder || { log_error "App '${NAME}' nao registrado (e pasta ${OB_APPS_DIR:-/var/www}/${NAME} nao existe)."; exit 1; }; fi
 if [ -n "$info" ]; then
-    if command_exists jq; then
-        APPTYPE="$(echo "$info" | jq -r '.type // "bot"' 2>/dev/null || echo bot)"
-        MAIN="$(echo "$info" | jq -r '.main // empty' 2>/dev/null)"
-        START="$(echo "$info" | jq -r '.start // empty' 2>/dev/null)"
-        PORT="$(echo "$info" | jq -r '.port // 0' 2>/dev/null || echo 0)"
-        DOMAIN="$(echo "$info" | jq -r '.domain // empty' 2>/dev/null)"
-        PATHREG="$(echo "$info" | jq -r '.path // empty' 2>/dev/null)"
-    else
-        APPTYPE="$(echo "$info" | grep -o '"type"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"type"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')"
-        [ -z "$APPTYPE" ] && APPTYPE="bot"
-        MAIN="$(echo "$info" | grep -o '"main"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"main"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')"
-        START="$(echo "$info" | grep -o '"start"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"start"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')"
-        PORT="$(echo "$info" | grep -o '"port"[[:space:]]*:[[:space:]]*[0-9]*' | head -1 | sed -E 's/.*"port"[[:space:]]*:[[:space:]]*([0-9]*).*/\1/')"
-        [ -z "$PORT" ] && PORT=0
-        DOMAIN="$(echo "$info" | grep -o '"domain"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"domain"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')"
-        PATHREG="$(echo "$info" | grep -o '"path"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | sed -E 's/.*"path"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/')"
-    fi
+  if command_exists jq; then
+    APPTYPE="$(echo "$info" | jq -r '.type // "bot"')"; MAIN="$(echo "$info" | jq -r '.main // empty')"; START="$(echo "$info" | jq -r '.start // empty')"
+    PORT="$(echo "$info" | jq -r '.port // 0')"; DOMAIN="$(echo "$info" | jq -r '.domain // empty')"; PATHREG="$(echo "$info" | jq -r '.path // empty')"
+  else
+    APPTYPE="$(echo "$info" | grep -o '"type"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"; [ -z "$APPTYPE" ] && APPTYPE="bot"
+    MAIN="$(echo "$info" | grep -o '"main"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+    START="$(echo "$info" | grep -o '"start"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+    PORT="$(echo "$info" | grep -o '"port"[^:]*:[0-9]*' | head -1 | sed 's/.*"port"[^:]*:\([0-9]*\).*/\1/')"; [ -z "$PORT" ] && PORT=0
+    DOMAIN="$(echo "$info" | grep -o '"domain"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+    PATHREG="$(echo "$info" | grep -o '"path"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+  fi
 fi
-# path registrado mas pasta ainda nao existe: usa
 [ -z "${APP_DIR:-}" ] && [ -n "$PATHREG" ] && APP_DIR="$PATHREG"
 [ -z "${APP_DIR:-}" ] && APP_DIR="${OB_APPS_DIR:-/var/www}/${NAME}"
-[ -z "$MAIN" ] && MAIN="index.js"
-[ -z "$START" ] && [ "$APPTYPE" = "site" ] && START=""
+[ -z "$MAIN" ] && MAIN="index.js"; [ -z "$START" ] && [ "$APPTYPE" = "site" ] && START=""
 
-# --- deploy atomico: snapshot + rollback + log persistente ---
+# ── deploy atomico ──
 mkdir -p "${HADIX_HOSTING_DIR:-/var/hadix}/logs" 2>/dev/null || true
 DEPLOY_LOG="${HADIX_HOSTING_DIR:-/var/hadix}/logs/${NAME}.deploy.log"
 SNAPSHOT_DIR=""
 if [ -d "$APP_DIR" ]; then
-    SNAPSHOT_DIR="$(mktemp -d)/${NAME}.snapshot"
-    cp -r "$APP_DIR" "$SNAPSHOT_DIR" 2>/dev/null || true
+  SNAPSHOT_DIR="$(mktemp -d)/${NAME}.snapshot"
+  cp -r "$APP_DIR" "$SNAPSHOT_DIR" 2>/dev/null || true
 fi
 DEPLOY_FAILED=false
-rollback() {
-    if [ "$DEPLOY_FAILED" = true ] && [ -n "$SNAPSHOT_DIR" ] && [ -d "$SNAPSHOT_DIR" ]; then
-        echo -e "  ${YELLOW}${WARN}${NC} Deploy falhou — revertendo alteracoes..." >&2
-        rm -rf "$APP_DIR" 2>/dev/null
-        mv "$SNAPSHOT_DIR" "$APP_DIR" 2>/dev/null
-        echo -e "  ${GREEN}${TICK}${NC} Snapshot restaurado: ${APP_DIR}" >&2
-    fi
-}
-deploy_fail() {
-    DEPLOY_FAILED=true
-    rollback
-    log_error "$1"
-    exit 1
-}
-# Log persistente: tudo que sai no stdout/stderr do deploy vai pro arquivo
+rollback() { if [ "$DEPLOY_FAILED" = true ] && [ -n "$SNAPSHOT_DIR" ] && [ -d "$SNAPSHOT_DIR" ]; then rm -rf "$APP_DIR" 2>/dev/null; mv "$SNAPSHOT_DIR" "$APP_DIR" 2>/dev/null; fi; }
+deploy_fail() { DEPLOY_FAILED=true; rollback; log_error "$1"; exit 1; }
 exec 3> >(tee -a "$DEPLOY_LOG" 2>/dev/null || true)
-echo "[$(date -Iseconds)] deploy '${NAME}' inicio (dir=${APP_DIR})" >&3
+echo "[$(date -Iseconds)] deploy '${NAME}' inicio" >&3
 
-# --- garante a pasta e starter (se nao vier codigo do front) ---
-if [ "$SKIP_FILES" = false ]; then
-    if [ ! -d "$APP_DIR" ]; then
-        mkdir -p "$APP_DIR"
-        log_info "Pasta criada: ${APP_DIR}"
-    fi
-    # package.json base
-    if [ "$APPTYPE" != "site" ] && [ ! -f "$APP_DIR/package.json" ]; then
-        cat > "$APP_DIR/package.json" << PKG
-{ "name": "${NAME}", "version": "1.0.0", "private": true, "main": "${MAIN}",
-  "scripts": { "start": "${START:-node ${MAIN}}" },
-  "dependencies": { } }
-PKG
-        log_info "package.json starter criado."
-    fi
-    # main file starter (apenas se nao existir e tipo executavel)
-    if [ "$APPTYPE" != "site" ] && [ ! -f "$APP_DIR/$MAIN" ]; then
-        # Detecta a linguagem pela extensao do MAIN (inteligente, nao so pelo tipo)
-        MAIN_LOWER="$(echo "$MAIN" | tr '[:upper:]' '[:lower:]')"
-        MAIN_LANG=""
-        case "$MAIN_LOWER" in
-            *.py)  MAIN_LANG="python" ;;
-            *.js|*.mjs|*.cjs) MAIN_LANG="js" ;;
-            *.ts|*.mts|*.cts) MAIN_LANG="ts" ;;
-            *.rb)  MAIN_LANG="ruby" ;;
-            *.go)  MAIN_LANG="go" ;;
-            *.rs)  MAIN_LANG="rust" ;;
-            *.php) MAIN_LANG="php" ;;
-            *.lua) MAIN_LANG="lua" ;;
-            *)     MAIN_LANG="$APPTYPE" ;;
-        esac
-
-        case "$MAIN_LANG" in
-            python)
-                # starter Python (discord.py p/ bot, FastAPI p/ api/worker)
-                if [ "$APPTYPE" = "bot" ]; then
-                    cat > "$APP_DIR/$MAIN" << 'PY'
-import os
-import discord
-from dotenv import load_dotenv
-
-load_dotenv()
-intents = discord.Intents.default()
-intents.message_content = True
-client = discord.Client(intents=intents)
-
-@client.event
-async def on_ready():
-    print(f'Bot conectado como {client.user}')
-
-client.run(os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN'))
-PY
-                    cat > "$APP_DIR/requirements.txt" << 'REQ'
-discord.py
-python-dotenv
-REQ
-                else
-                    cat > "$APP_DIR/$MAIN" << 'PY'
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
-PORT = int(os.getenv('PORT', '8000'))
-
-try:
-    from http.server import HTTPServer, BaseHTTPRequestHandler
-    class H(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'hadix app online')
-    HTTPServer(('0.0.0.0', PORT), H).serve_forever()
-except ImportError:
-    import time
-    while True:
-        print('hadix worker online', time.time())
-        time.sleep(60)
-PY
-                    cat > "$APP_DIR/requirements.txt" << 'REQ'
-python-dotenv
-REQ
-                fi
-                log_info "Starter Python ${MAIN} criado."
-                ;;
-            js)
-                # starter JavaScript (discord.js p/ bot, http p/ api/worker)
-                if [ "$APPTYPE" = "bot" ]; then
-                    cat > "$APP_DIR/$MAIN" << 'JS'
-require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-client.once('ready', () => console.log(`Bot online como ${client.user.tag}`));
-client.on('messageCreate', (msg) => { if (msg.content === '!ping') msg.reply('pong! (hadix)'); });
-client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
-JS
-                else
-                    cat > "$APP_DIR/$MAIN" << JS
-require('dotenv').config();
-const http = require('http');
-http.createServer((req, res) => { res.writeHead(200, {'content-type':'text/plain'}); res.end('hadix app online'); })
-  .listen(${PORT:-0}, () => console.log('listening' + (${PORT:-0} ? ' :${PORT}' : '')));
-JS
-                fi
-                log_info "Starter JavaScript ${MAIN} criado."
-                ;;
-            ts)
-                # starter TypeScript (bot -> discord.js, else -> express)
-                if [ "$APPTYPE" = "bot" ]; then
-                    cat > "$APP_DIR/$MAIN" << 'TS'
-import 'dotenv/config';
-import { Client, GatewayIntentBits } from 'discord.js';
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
-client.once('ready', () => console.log(`Bot online como ${client.user?.tag}`));
-client.on('messageCreate', (msg) => { if (msg.content === '!ping') msg.reply('pong! (hadix)'); });
-client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
-TS
-                else
-                    cat > "$APP_DIR/$MAIN" << 'TS'
-import 'dotenv/config';
-import express from 'express';
-const app = express();
-const PORT = Number(process.env.PORT || 3000);
-app.get('/', (_req, res) => res.send('hadix app online'));
-app.listen(PORT, () => console.log(`listening :${PORT}`));
-TS
-                fi
-                log_info "Starter TypeScript ${MAIN} criado."
-                ;;
-            ruby)
-                cat > "$APP_DIR/$MAIN" << 'RB'
-require 'dotenv/load'
-loop do
-  puts "hadix worker online: #{Time.now}"
-  sleep 60
-end
-RB
-                log_info "Starter Ruby ${MAIN} criado."
-                ;;
-            go)
-                cat > "$APP_DIR/$MAIN" << 'GO'
-package main
-
-import (
-	"fmt"
-	"log"
-	"net/http"
-)
-
-func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "hadix app online")
-	})
-	log.Println("listening :3000")
-	log.Fatal(http.ListenAndServe(":3000", nil))
+# ════════════════════════════════════════════════════════════════════
+# P0 — RUNTIME DETECTION + VALIDACAO
+# ════════════════════════════════════════════════════════════════════
+RUN_MAIN="$APP_DIR/$MAIN"
+detect_runtime() {
+  local ext
+  ext="$(echo "$MAIN" | sed 's/.*\.//')"
+  case "$ext" in
+    js|mjs|cjs)
+      [ -f "$APP_DIR/package.json" ] && RUNTIME="node" || RUNTIME="node"
+      EXT_LANG="Node.js"
+      RUN_CMD="node"
+      [ "$ext" = "mjs" ] && RUN_CMD="node --experimental-modules"
+      ;;
+    ts|mts|cts)
+      RUNTIME="node"; EXT_LANG="Node.js (TypeScript)"; RUN_CMD="npx tsx"
+      ;;
+    py)
+      RUNTIME="python"; EXT_LANG="Python"; RUN_CMD="python3"
+      ;;
+    rb)
+      RUNTIME="ruby"; EXT_LANG="Ruby"; RUN_CMD="ruby"
+      ;;
+    go)
+      RUNTIME="go"; EXT_LANG="Go"; RUN_CMD="go run"
+      ;;
+    rs)
+      RUNTIME="rust"; EXT_LANG="Rust"; RUN_CMD="cargo run --bin ${NAME}"
+      ;;
+    php)
+      RUNTIME="php"; EXT_LANG="PHP"; RUN_CMD="php"
+      ;;
+    lua)
+      RUNTIME="lua"; EXT_LANG="Lua"; RUN_CMD="lua"
+      ;;
+    *)
+      # fallback: tenta detectar por arquivos de config
+      [ -f "$APP_DIR/package.json" ] && { RUNTIME="node"; EXT_LANG="Node.js"; RUN_CMD="node"; }
+      [ -f "$APP_DIR/requirements.txt" ] && { RUNTIME="python"; EXT_LANG="Python"; RUN_CMD="python3"; }
+      [ -f "$APP_DIR/go.mod" ] && { RUNTIME="go"; EXT_LANG="Go"; RUN_CMD="go run"; }
+      [ -z "${RUNTIME:-}" ] && { RUNTIME="node"; EXT_LANG="Node.js"; RUN_CMD="node"; }
+      ;;
+  esac
 }
-GO
-                log_info "Starter Go ${MAIN} criado."
-                ;;
-            rust)
-                cat > "$APP_DIR/$MAIN" << 'RS'
-use std::{thread, time::Duration};
+detect_runtime
 
-fn main() {
-    println!("hadix worker online");
-    thread::sleep(Duration::from_secs(60));
-}
-RS
-                log_info "Starter Rust ${MAIN} criado."
-                ;;
-            php)
-                cat > "$APP_DIR/$MAIN" << 'PHP'
-<?php
-echo "hadix app online";
-PHP
-                log_info "Starter PHP ${MAIN} criado."
-                ;;
-            lua)
-                cat > "$APP_DIR/$MAIN" << 'LUA'
-print("hadix worker online")
-os.execute("sleep 60")
-LUA
-                log_info "Starter Lua ${MAIN} criado."
-                ;;
-            *)
-                log_warn "Linguagem de '${MAIN}' nao detectada — starter generico nao criado."
-                ;;
-        esac
-    fi
-    # .env padrao p/ bots
-    if [ "$APPTYPE" = "bot" ] && [ ! -f "$APP_DIR/.env" ]; then
-        cat > "$APP_DIR/.env" << 'ENV'
-DISCORD_TOKEN=
-TOKEN=
-ENV
-        chmod 600 "$APP_DIR/.env" 2>/dev/null || true
-    fi
-fi
+# P0 — VALIDACAO DO ENTRYPOINT
+log_step "[VALIDACAO] Entrypoint: ${MAIN} (${EXT_LANG})"
+[ ! -f "$RUN_MAIN" ] && deploy_fail "Entrypoint '${MAIN}' nao encontrado em ${APP_DIR}."
+[ -f "$APP_DIR/package.json" ] && [ "$RUNTIME" != "node" ] && deploy_fail "Runtime mismatch: arquivo '${MAIN}' (${EXT_LANG}) nao e Node.js, mas ha package.json. Use extensao .js/.mjs/.cjs para Node."
 
-# --- instala dependencias (detecta linguagem pelo main/package) ---
-install_deps_for_app() {
-    # Python: pip install -r requirements.txt (ou cria venv se existir requirements)
-    if [ -f "$APP_DIR/requirements.txt" ]; then
-        log_step "Instalando dependencias Python em ${APP_DIR}"
-        if command_exists pip3; then
-            (cd "$APP_DIR" && pip3 install -r requirements.txt) >&3 2>&1 \
-                && log_ok "pip: dependencias instaladas" \
-                || deploy_fail "pip install falhou — veja ${DEPLOY_LOG}"
-        elif command_exists python3; then
-            (cd "$APP_DIR" && python3 -m pip install -r requirements.txt) >&3 2>&1 \
-                && log_ok "pip: dependencias instaladas" \
-                || deploy_fail "pip install falhou — veja ${DEPLOY_LOG}"
-        else
-            log_warn "python3/pip nao instalado — nao foi possivel instalar requirements.txt."
-        fi
-        return 0
-    fi
-    # Node: npm install
-    if [ -f "$APP_DIR/package.json" ] && command_exists npm; then
-        log_step "Instalando dependencias Node em ${APP_DIR}"
-        (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 \
-            && log_ok "npm: dependencias instaladas" \
-            || deploy_fail "npm install falhou — veja ${DEPLOY_LOG}"
-        return 0
-    fi
-    # Go: go mod tidy / go build
-    if [ -f "$APP_DIR/go.mod" ] && command_exists go; then
-        log_step "Instalando dependencias Go em ${APP_DIR}"
-        (cd "$APP_DIR" && go mod tidy) >&3 2>&1 \
-            && log_ok "go: dependencias instaladas" \
-            || deploy_fail "go mod tidy falhou — veja ${DEPLOY_LOG}"
-        return 0
-    fi
-    log_warn "Nenhum gerenciador de deps detectado (requirements.txt/package.json/go.mod)."
-    return 0
-}
+# P0 — VERIFICA RUNTIME DISPONIVEL
+command_exists "$RUN_CMD" || deploy_fail "Runtime '${RUN_CMD}' (${EXT_LANG}) nao instalado. Instale com: bootstrap install ${RUNTIME}"
+log_ok "Runtime detectado: ${EXT_LANG} (${RUN_CMD})"
 
-if [ "$DO_INSTALL" = true ]; then
-    install_deps_for_app
-fi
-
-# --- inicia via pm2 (mesmo nome do app p/ logs/status resolverem) ---
-if command_exists pm2; then
-    if pm2 describe "$NAME" >/dev/null 2>&1; then
-        pm2 restart "$NAME" >&3 2>&1
-        log_ok "'${NAME}' ja estava no pm2 — reiniciado."
+# P0 — VERIFICA CONFIG DE DEPENDENCIAS + PREPARA
+DEPS_FILE=""; DEPS_CMD=""
+case "$RUNTIME" in
+  node)
+    [ -f "$APP_DIR/package.json" ] || deploy_fail "package.json nao encontrado — necessario para apps Node.js."
+    if [ -f "$APP_DIR/package-lock.json" ]; then
+      DEPS_FILE="package-lock.json"; DEPS_CMD="npm ci"
+    elif [ -f "$APP_DIR/yarn.lock" ]; then
+      DEPS_FILE="yarn.lock"; DEPS_CMD="npm install"
     else
-        if [ "$APPTYPE" = "site" ]; then
-            # site estatico: sem processo node, apenas pasta (nginx cuida)
-            log_ok "App '${NAME}' (site estatico) pronto — publique via nginx."
-            exit 0
-        fi
-        # comando exibido (detecta linguagem p/ log correto)
-        MAIN_LOWER="$(echo "$MAIN" | tr '[:upper:]' '[:lower:]')"
-        cmd="node ${MAIN}"
-        case "$MAIN_LOWER" in
-            *.py) cmd="python3 ${MAIN}" ;;
-            *.ts) cmd="npx tsx ${MAIN}" ;;
-            *.rb) cmd="ruby ${MAIN}" ;;
-            *.go) cmd="go run ${MAIN}" ;;
-            *.rs) cmd="cargo run --bin ${NAME}" ;;
-            *.php) cmd="php ${MAIN}" ;;
-            *.lua) cmd="lua ${MAIN}" ;;
-        esac
-        [ -n "$START" ] && cmd="$START"
-        # pm2: restart-delay evita loop quando o app crasha na inicializacao;
-        # max-restarts limita tentativas antes de marcar como erro.
-        if (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --cwd "$APP_DIR" --restart-delay 3000 --max-restarts 10 --time >&3 2>&1); then
-            log_ok "'${NAME}' iniciado via pm2 (${cmd})."
-        else
-            (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --restart-delay 3000 --max-restarts 10 --time >&3 2>&1) \
-                && log_ok "'${NAME}' iniciado via pm2." \
-                || deploy_fail "Falha ao iniciar via pm2 em ${APP_DIR} — veja ${DEPLOY_LOG}"
-        fi
-        # verifica se subiu: se nao estiver online apos 5s, marca erro (rollback)
-        sleep 5
-        if ! pm2 jlist 2>/dev/null | grep -q "\"name\":\"${NAME}\""; then
-            deploy_fail "pm2 nao confirmou o processo '${NAME}' — veja ${DEPLOY_LOG}"
-        fi
+      DEPS_FILE="package.json"; DEPS_CMD="npm install"
     fi
-    pm2 save >&3 2>&1 || true
-else
-    log_warn "pm2 nao instalado — app '${NAME}' nao foi iniciado."
-    echo "  Rode: bootstrap production   (instala pm2 e sobe a stack)"
-    deploy_fail "pm2 ausente"
+    # le scripts.start do package.json
+    command_exists jq && {
+      PKG_START="$(jq -r '.scripts.start // empty' "$APP_DIR/package.json" 2>/dev/null)"
+      [ -n "$PKG_START" ] && START="$PKG_START"
+      PKG_MAIN="$(jq -r '.main // empty' "$APP_DIR/package.json" 2>/dev/null)"
+      [ -n "$PKG_MAIN" ] && MAIN="$PKG_MAIN"
+    }
+    log_ok "Node.js: ${DEPS_FILE} detectado, comando install: ${DEPS_CMD}"
+    ;;
+  python)
+    [ -f "$APP_DIR/requirements.txt" ] || deploy_fail "requirements.txt nao encontrado — necessario para apps Python."
+    DEPS_FILE="requirements.txt"; DEPS_CMD="pip install -r requirements.txt"
+    log_ok "Python: requirements.txt detectado"
+    ;;
+esac
+
+# P1 — PRE-DEPLOY VALIDATION SUMMARY
+log_step "VALIDACAO"
+echo "  ${GREEN}${TICK}${NC} Entrypoint: ${MAIN} (${EXT_LANG})" >&3
+echo "  ${GREEN}${TICK}${NC} Runtime: ${RUNTIME} (${RUN_CMD})" >&3
+echo "  ${GREEN}${TICK}${NC} Dependencias: ${DEPS_FILE:-nenhum}" >&3
+echo "  ${GREEN}${TICK}${NC} Ambiente: ${APP_DIR}" >&3
+echo "  ${GREEN}${TICK}${NC} App pronto para deploy" >&3
+
+# ════════════════════════════════════════════════════════════════════
+# P1 — INSTALL DEPENDENCIAS  
+# ════════════════════════════════════════════════════════════════════
+if [ "$DO_INSTALL" = true ]; then
+  log_step "Instalando dependencias..."
+  case "$RUNTIME" in
+    node)
+      if [ -f "$APP_DIR/package-lock.json" ] && command_exists npm; then
+        (cd "$APP_DIR" && npm ci --no-audit --no-fund) >&3 2>&1 || (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 || deploy_fail "npm install/ci falhou — veja ${DEPLOY_LOG}"
+      elif command_exists npm; then
+        (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 || deploy_fail "npm install falhou — veja ${DEPLOY_LOG}"
+      elif command_exists pnpm; then
+        (cd "$APP_DIR" && pnpm install --no-frozen-lockfile) >&3 2>&1 || deploy_fail "pnpm install falhou"
+      fi
+      log_ok "Dependencias Node instaladas"
+      ;;
+    python)
+      # ambiente virtual isolado
+      VENV_DIR="$APP_DIR/.venv"
+      if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR" >&3 2>&1 || deploy_fail "python3 -m venv falhou"
+      fi
+      "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements.txt" >&3 2>&1 || deploy_fail "pip install falhou — veja ${DEPLOY_LOG}"
+      RUN_CMD="$VENV_DIR/bin/python"
+      log_ok "Dependencias Python instaladas (venv: ${VENV_DIR})"
+      ;;
+  esac
 fi
 
-# atualiza apps.json com path confirmado
-if command_exists jq; then
-    if [ "$(echo "$info" | jq -r '.path // empty' 2>/dev/null)" != "$APP_DIR" ]; then
-        tmp="$(mktemp)"
-        jq --arg n "$NAME" --arg p "$APP_DIR" '.[$n].path = $p' "$OB_APPS_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$OB_APPS_FILE" 2>/dev/null
+# ════════════════════════════════════════════════════════════════════
+# P1 — ENVIRONMENT VARIABLES
+# ════════════════════════════════════════════════════════════════════
+ENV_FILE="$APP_DIR/.env"
+HADIX_ENV_DIR="${HADIX_HOSTING_DIR:-/var/hadix}/envs"
+if [ -f "$HADIX_ENV_DIR/${NAME}.env" ]; then
+  # copia env especifico do app (se existir no diretorio central)
+  cp "$HADIX_ENV_DIR/${NAME}.env" "$ENV_FILE" 2>/dev/null || true
+  chmod 600 "$ENV_FILE" 2>/dev/null || true
+fi
+log_ok "Variaveis de ambiente carregadas (${ENV_FILE})" >&3
+
+# ════════════════════════════════════════════════════════════════════
+# P0 — PM2 PROCESS MANAGEMENT
+# ════════════════════════════════════════════════════════════════════
+command_exists pm2 || deploy_fail "pm2 nao instalado — rode bootstrap production"
+
+# comando de execucao
+case "$RUNTIME" in
+  node)
+    if [ -n "$START" ] && [ "$START" != "node ${MAIN}" ]; then
+      # se scripts.start existe, usa npm start que respeita o script
+      PM2_CMD="npm -- start"
+      PM2_ARGS=""
+    else
+      PM2_CMD="$MAIN"
+      PM2_ARGS=""
     fi
+    ;;
+  python)
+    if [ -n "$START" ]; then
+      PM2_CMD="$START"
+    else
+      PM2_CMD="$MAIN"
+      PM2_ARGS="--interpreter python3"
+    fi
+    ;;
+  *)
+    PM2_CMD="$MAIN"
+    PM2_ARGS=""
+    ;;
+esac
+
+# se ja existe no pm2, restart
+if pm2 describe "$NAME" >/dev/null 2>&1; then
+  pm2 restart "$NAME" >&3 2>&1
+  log_ok "'${NAME}' reiniciado via pm2"
+else
+  log_step "Iniciando com PM2..."
+  # P1 — STRUCTURED LOG: pm2 com --time (adiciona timestamp) + log
+  if [ "$RUNTIME" = "node" ] && [ -n "$START" ]; then
+    # usa npm start para respeitar scripts.start
+    (cd "$APP_DIR" && pm2 start npm --name "$NAME" --cwd "$APP_DIR" -- run start --time --restart-delay 3000 --max-restarts 10 --merge-logs) >&3 2>&1
+  elif [ "$RUNTIME" = "python" ]; then
+    (cd "$APP_DIR" && pm2 start "$MAIN" --name "$NAME" --interpreter "$RUN_CMD" --cwd "$APP_DIR" --time --restart-delay 3000 --max-restarts 10 --merge-logs) >&3 2>&1
+  else
+    (cd "$APP_DIR" && pm2 start "$MAIN" --name "$NAME" --cwd "$APP_DIR" --time --restart-delay 3000 --max-restarts 10 --merge-logs) >&3 2>&1
+  fi
+  pm2 save >&3 2>&1 || true
+  # verifica estado apos inicio
+  sleep 3
+  _status="$(pm2 jlist 2>/dev/null | jq -r --arg n "$NAME" '.[] | select(.name==$n) | .pm2_env.status' 2>/dev/null || echo "stopped")"
+  if [ "$_status" = "online" ]; then
+    log_ok "'${NAME}' online via pm2 (${RUNTIME})"
+  else
+    # P1 — CRASHED STATE: mostra saida real do pm2
+    _err="$(pm2 jlist 2>/dev/null | jq -r --arg n "$NAME" '.[] | select(.name==$n) | .pm2_env.pm_err_log_path // empty' 2>/dev/null)"
+    _err_msg=""
+    [ -n "$_err" ] && [ -f "$_err" ] && _err_msg="$(tail -5 "$_err" 2>/dev/null)"
+    deploy_fail "App '${NAME}' nao ficou online (status=${_status}). Erro: ${_err_msg}"
+  fi
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# P1 — UPDATE APP STATE ON apps.json
+# ════════════════════════════════════════════════════════════════════
+if command_exists jq && [ -f "$OB_APPS_FILE" ]; then
+  tmp="$(mktemp)"
+  jq --arg n "$NAME" --arg p "$APP_DIR" --arg r "$RUNTIME" --arg s "online" \
+    '.[$n].path = $p | .[$n].runtime = $r | .[$n].status = $s' "$OB_APPS_FILE" > "$tmp" 2>/dev/null && mv "$tmp" "$OB_APPS_FILE" 2>/dev/null
 fi
 
 echo ""
-log_ok "App '${NAME}' online (bootstrap status ${NAME} / bootstrap logs ${NAME})."
+log_ok "App '${NAME}' online (${RUNTIME}). Logs: bootstrap logs ${NAME} | Status: bootstrap status ${NAME}"
 exec 3>&- 2>/dev/null || true
 exit 0

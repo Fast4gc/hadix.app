@@ -40,6 +40,7 @@ Uso:
   bootstrap logs <nome>              Mostra logs de um app (pm2/docker)
   bootstrap restart <nome>           Reinicia um app
   bootstrap start <nome>             Sobe/provisiona um app registrado (pm2 + deps)
+  bootstrap stop <nome>              Para um app (estado STOPPED)
   bootstrap ssl <dominio>            Emite/renova certificado SSL
   bootstrap remove <nome>            Remove um app
   bootstrap list                     Lista os apps gerenciados
@@ -108,6 +109,7 @@ dispatch() {
         logs)           bash "${OB_HOME}/commands/logs.sh" "$@" ;;
         restart)        require_root; bash "${OB_HOME}/commands/restart.sh" "$@" ;;
         start)          require_root; bash "${OB_HOME}/commands/start.sh" "$@" ;;
+        stop)           require_root; bash "${OB_HOME}/commands/stop.sh" "$@" ;;
         vps|files)      require_root; bash "${OB_HOME}/commands/vps.sh" "$@" ;;
         monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
         production|prod-setup) bash "${OB_HOME}/commands/production.sh" "$@" ;;
