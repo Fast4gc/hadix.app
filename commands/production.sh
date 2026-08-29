@@ -163,6 +163,21 @@ SVC
 }
 
 # ---------------------------------------------------------------- nginx presets
+# Remove confs com placeholders nao substituidos (restos de versao antiga)
+clean_nginx_placeholders() {
+    local found=""
+    found="$(grep -rl '__[A-Z0-9_]*__' /etc/nginx/conf.d /etc/nginx/sites-available /etc/nginx/sites-enabled 2>/dev/null || true)"
+    if [ -n "$found" ]; then
+        echo "    ${YELLOW}${WARN}${NC} Removendo confs Nginx com placeholders (versao antiga):"
+        while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            echo "      - $f"
+            rm -f "$f"
+        done <<< "$found"
+        find /etc/nginx/sites-enabled -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+    fi
+}
+
 setup_nginx() {
     echo -e "\n  ${BOLD}${SKY}Nginx presets${NC}"
     if ! cmd_exists nginx; then
@@ -172,6 +187,11 @@ setup_nginx() {
         fi
     else
         step_done "nginx $(nginx -v 2>&1 | sed 's/.*nginx\///')"
+    fi
+
+    # limpa confs quebrados de versoes antigas antes de instalar o preset
+    if [ "$MODE" != "dry" ]; then
+        clean_nginx_placeholders
     fi
 
     # conf global WebSocket (upgrade) p/ bots e apps em tempo real
@@ -189,7 +209,12 @@ setup_nginx() {
     if [ "$MODE" != "dry" ] && cmd_exists nginx; then
         [ -d /etc/nginx ] || return
         grep -q "client_max_body_size" /etc/nginx/nginx.conf 2>/dev/null || true
-        nginx -t >/dev/null 2>&1 && systemctl reload nginx >/dev/null 2>&1 || true
+        if nginx -t >/dev/null 2>&1; then
+            systemctl reload nginx >/dev/null 2>&1 || true
+        else
+            echo "    ${YELLOW}${WARN}${NC} nginx -t falhou — detalhes:" >&2
+            nginx -t 2>&1 | head -10 >&2
+        fi
     fi
     step_done "nginx pronto para proxy/static/websocket"
 }
