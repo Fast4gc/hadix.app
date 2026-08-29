@@ -17,6 +17,12 @@ elif command_exists docker && docker ps -a --format '{{.Names}}' | grep -qx "$NA
 elif systemctl list-units --full -all | grep -q "${NAME}.service"; then
     systemctl restart "$NAME" && log_ok "'${NAME}' reiniciado via systemd."
 else
-    log_error "Nao encontrei processo gerenciado para '${NAME}'."
-    exit 1
+    # app registrado mas sem processo: tenta subir via start.sh
+    if command_exists jq && jq -e --arg n "$NAME" 'has($n)' "$OB_APPS_FILE" >/dev/null 2>&1; then
+        log_info "App registrado mas sem processo — subindo via start.sh..."
+        bash "${OB_HOME}/commands/start.sh" "$NAME"
+    else
+        log_error "Nao encontrei processo gerenciado para '${NAME}'."
+        exit 1
+    fi
 fi
