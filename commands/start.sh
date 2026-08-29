@@ -97,6 +97,33 @@ fi
 [ -z "$MAIN" ] && MAIN="index.js"
 [ -z "$START" ] && [ "$APPTYPE" = "site" ] && START=""
 
+# --- deploy atomico: snapshot + rollback + log persistente ---
+mkdir -p "${HADIX_HOSTING_DIR:-/var/hadix}/logs" 2>/dev/null || true
+DEPLOY_LOG="${HADIX_HOSTING_DIR:-/var/hadix}/logs/${NAME}.deploy.log"
+SNAPSHOT_DIR=""
+if [ -d "$APP_DIR" ]; then
+    SNAPSHOT_DIR="$(mktemp -d)/${NAME}.snapshot"
+    cp -r "$APP_DIR" "$SNAPSHOT_DIR" 2>/dev/null || true
+fi
+DEPLOY_FAILED=false
+rollback() {
+    if [ "$DEPLOY_FAILED" = true ] && [ -n "$SNAPSHOT_DIR" ] && [ -d "$SNAPSHOT_DIR" ]; then
+        echo -e "  ${YELLOW}${WARN}${NC} Deploy falhou — revertendo alteracoes..." >&2
+        rm -rf "$APP_DIR" 2>/dev/null
+        mv "$SNAPSHOT_DIR" "$APP_DIR" 2>/dev/null
+        echo -e "  ${GREEN}${TICK}${NC} Snapshot restaurado: ${APP_DIR}" >&2
+    fi
+}
+deploy_fail() {
+    DEPLOY_FAILED=true
+    rollback
+    log_error "$1"
+    exit 1
+}
+# Log persistente: tudo que sai no stdout/stderr do deploy vai pro arquivo
+exec 3> >(tee -a "$DEPLOY_LOG" 2>/dev/null || true)
+echo "[$(date -Iseconds)] deploy '${NAME}' inicio (dir=${APP_DIR})" >&3
+
 # --- garante a pasta e starter (se nao vier codigo do front) ---
 if [ "$SKIP_FILES" = false ]; then
     if [ ! -d "$APP_DIR" ]; then
@@ -301,13 +328,13 @@ install_deps_for_app() {
     if [ -f "$APP_DIR/requirements.txt" ]; then
         log_step "Instalando dependencias Python em ${APP_DIR}"
         if command_exists pip3; then
-            (cd "$APP_DIR" && pip3 install -q -r requirements.txt) 2>/dev/null \
+            (cd "$APP_DIR" && pip3 install -r requirements.txt) >&3 2>&1 \
                 && log_ok "pip: dependencias instaladas" \
-                || log_warn "pip install falhou (requirement incompativel?)."
+                || deploy_fail "pip install falhou — veja ${DEPLOY_LOG}"
         elif command_exists python3; then
-            (cd "$APP_DIR" && python3 -m pip install -q -r requirements.txt) 2>/dev/null \
+            (cd "$APP_DIR" && python3 -m pip install -r requirements.txt) >&3 2>&1 \
                 && log_ok "pip: dependencias instaladas" \
-                || log_warn "pip install falhou."
+                || deploy_fail "pip install falhou — veja ${DEPLOY_LOG}"
         else
             log_warn "python3/pip nao instalado — nao foi possivel instalar requirements.txt."
         fi
@@ -316,17 +343,17 @@ install_deps_for_app() {
     # Node: npm install
     if [ -f "$APP_DIR/package.json" ] && command_exists npm; then
         log_step "Instalando dependencias Node em ${APP_DIR}"
-        (cd "$APP_DIR" && npm install --no-audit --no-fund) >/dev/null 2>&1 \
+        (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 \
             && log_ok "npm: dependencias instaladas" \
-            || log_warn "npm install falhou (verifique package.json)."
+            || deploy_fail "npm install falhou — veja ${DEPLOY_LOG}"
         return 0
     fi
     # Go: go mod tidy / go build
     if [ -f "$APP_DIR/go.mod" ] && command_exists go; then
         log_step "Instalando dependencias Go em ${APP_DIR}"
-        (cd "$APP_DIR" && go mod tidy) >/dev/null 2>&1 \
+        (cd "$APP_DIR" && go mod tidy) >&3 2>&1 \
             && log_ok "go: dependencias instaladas" \
-            || log_warn "go mod tidy falhou."
+            || deploy_fail "go mod tidy falhou — veja ${DEPLOY_LOG}"
         return 0
     fi
     log_warn "Nenhum gerenciador de deps detectado (requirements.txt/package.json/go.mod)."
@@ -340,7 +367,7 @@ fi
 # --- inicia via pm2 (mesmo nome do app p/ logs/status resolverem) ---
 if command_exists pm2; then
     if pm2 describe "$NAME" >/dev/null 2>&1; then
-        pm2 restart "$NAME" >/dev/null 2>&1
+        pm2 restart "$NAME" >&3 2>&1
         log_ok "'${NAME}' ja estava no pm2 — reiniciado."
     else
         if [ "$APPTYPE" = "site" ]; then
@@ -361,19 +388,26 @@ if command_exists pm2; then
             *.lua) cmd="lua ${MAIN}" ;;
         esac
         [ -n "$START" ] && cmd="$START"
-        if (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --cwd "$APP_DIR" >/dev/null 2>&1); then
+        # pm2: restart-delay evita loop quando o app crasha na inicializacao;
+        # max-restarts limita tentativas antes de marcar como erro.
+        if (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --cwd "$APP_DIR" --restart-delay 3000 --max-restarts 10 --time >&3 2>&1); then
             log_ok "'${NAME}' iniciado via pm2 (${cmd})."
         else
-            (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" >/dev/null 2>&1) \
+            (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --restart-delay 3000 --max-restarts 10 --time >&3 2>&1) \
                 && log_ok "'${NAME}' iniciado via pm2." \
-                || log_error "Falha ao iniciar via pm2 em ${APP_DIR}."
+                || deploy_fail "Falha ao iniciar via pm2 em ${APP_DIR} — veja ${DEPLOY_LOG}"
+        fi
+        # verifica se subiu: se nao estiver online apos 5s, marca erro (rollback)
+        sleep 5
+        if ! pm2 jlist 2>/dev/null | grep -q "\"name\":\"${NAME}\""; then
+            deploy_fail "pm2 nao confirmou o processo '${NAME}' — veja ${DEPLOY_LOG}"
         fi
     fi
-    pm2 save >/dev/null 2>&1 || true
+    pm2 save >&3 2>&1 || true
 else
     log_warn "pm2 nao instalado — app '${NAME}' nao foi iniciado."
     echo "  Rode: bootstrap production   (instala pm2 e sobe a stack)"
-    exit 1
+    deploy_fail "pm2 ausente"
 fi
 
 # atualiza apps.json com path confirmado
@@ -386,3 +420,5 @@ fi
 
 echo ""
 log_ok "App '${NAME}' online (bootstrap status ${NAME} / bootstrap logs ${NAME})."
+exec 3>&- 2>/dev/null || true
+exit 0

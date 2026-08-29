@@ -49,6 +49,7 @@ Uso:
   bootstrap production --check        Status atual da stack de hosting (sem alterar)
   bootstrap production --dry-run      Simula sem alterar nada
   bootstrap status [app] [--json]     Status de apps (tipo, processo, porta, dominio)
+  bootstrap doctor [--json]           Diagnostico da VPS (nginx, pm2, apps, config)
   bootstrap dashboard                 Painel central (contas, planos, bots, nodes)
   bootstrap dashboard users           Lista/gerencia contas do hadix.site
   bootstrap dashboard plans           Lista planos de assinatura
@@ -111,6 +112,7 @@ dispatch() {
         monitor)        bash "${OB_HOME}/commands/monitor.sh" "$@" ;;
         production|prod-setup) bash "${OB_HOME}/commands/production.sh" "$@" ;;
         status)         bash "${OB_HOME}/commands/status.sh" "$@" ;;
+        doctor)         bash "${OB_HOME}/commands/doctor.sh" "$@" ;;
         dashboard)      bash "${OB_HOME}/commands/dashboard.sh" "$@" ;;
         front)          bash "${OB_HOME}/commands/front.sh" "$@" ;;
         ssl)            require_root; bash "${OB_HOME}/commands/ssl.sh" "$@" ;;
