@@ -114,8 +114,77 @@ PKG
     fi
     # main file starter (apenas se nao existir e tipo executavel)
     if [ "$APPTYPE" != "site" ] && [ ! -f "$APP_DIR/$MAIN" ]; then
-        if [ "$APPTYPE" = "bot" ]; then
-            cat > "$APP_DIR/$MAIN" << 'JS'
+        # Detecta a linguagem pela extensao do MAIN (inteligente, nao so pelo tipo)
+        MAIN_LOWER="$(echo "$MAIN" | tr '[:upper:]' '[:lower:]')"
+        MAIN_LANG=""
+        case "$MAIN_LOWER" in
+            *.py)  MAIN_LANG="python" ;;
+            *.js|*.mjs|*.cjs) MAIN_LANG="js" ;;
+            *.ts|*.mts|*.cts) MAIN_LANG="ts" ;;
+            *.rb)  MAIN_LANG="ruby" ;;
+            *.go)  MAIN_LANG="go" ;;
+            *.rs)  MAIN_LANG="rust" ;;
+            *.php) MAIN_LANG="php" ;;
+            *.lua) MAIN_LANG="lua" ;;
+            *)     MAIN_LANG="$APPTYPE" ;;
+        esac
+
+        case "$MAIN_LANG" in
+            python)
+                # starter Python (discord.py p/ bot, FastAPI p/ api/worker)
+                if [ "$APPTYPE" = "bot" ]; then
+                    cat > "$APP_DIR/$MAIN" << 'PY'
+import os
+import discord
+from dotenv import load_dotenv
+
+load_dotenv()
+intents = discord.Intents.default()
+intents.message_content = True
+client = discord.Client(intents=intents)
+
+@client.event
+async def on_ready():
+    print(f'Bot conectado como {client.user}')
+
+client.run(os.getenv('DISCORD_TOKEN') or os.getenv('TOKEN'))
+PY
+                    cat > "$APP_DIR/requirements.txt" << 'REQ'
+discord.py
+python-dotenv
+REQ
+                else
+                    cat > "$APP_DIR/$MAIN" << 'PY'
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+PORT = int(os.getenv('PORT', '8000'))
+
+try:
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'hadix app online')
+    HTTPServer(('0.0.0.0', PORT), H).serve_forever()
+except ImportError:
+    import time
+    while True:
+        print('hadix worker online', time.time())
+        time.sleep(60)
+PY
+                    cat > "$APP_DIR/requirements.txt" << 'REQ'
+python-dotenv
+REQ
+                fi
+                log_info "Starter Python ${MAIN} criado."
+                ;;
+            js)
+                # starter JavaScript (discord.js p/ bot, http p/ api/worker)
+                if [ "$APPTYPE" = "bot" ]; then
+                    cat > "$APP_DIR/$MAIN" << 'JS'
 require('dotenv').config();
 const { Client, GatewayIntentBits } = require('discord.js');
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
@@ -123,15 +192,98 @@ client.once('ready', () => console.log(`Bot online como ${client.user.tag}`));
 client.on('messageCreate', (msg) => { if (msg.content === '!ping') msg.reply('pong! (hadix)'); });
 client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
 JS
-        else
-            cat > "$APP_DIR/$MAIN" << JS
+                else
+                    cat > "$APP_DIR/$MAIN" << JS
 require('dotenv').config();
 const http = require('http');
 http.createServer((req, res) => { res.writeHead(200, {'content-type':'text/plain'}); res.end('hadix app online'); })
   .listen(${PORT:-0}, () => console.log('listening' + (${PORT:-0} ? ' :${PORT}' : '')));
 JS
-        fi
-        log_info "Starter ${MAIN} criado (o codigo real do app pode substituir)."
+                fi
+                log_info "Starter JavaScript ${MAIN} criado."
+                ;;
+            ts)
+                # starter TypeScript (bot -> discord.js, else -> express)
+                if [ "$APPTYPE" = "bot" ]; then
+                    cat > "$APP_DIR/$MAIN" << 'TS'
+import 'dotenv/config';
+import { Client, GatewayIntentBits } from 'discord.js';
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] });
+client.once('ready', () => console.log(`Bot online como ${client.user?.tag}`));
+client.on('messageCreate', (msg) => { if (msg.content === '!ping') msg.reply('pong! (hadix)'); });
+client.login(process.env.DISCORD_TOKEN || process.env.TOKEN);
+TS
+                else
+                    cat > "$APP_DIR/$MAIN" << 'TS'
+import 'dotenv/config';
+import express from 'express';
+const app = express();
+const PORT = Number(process.env.PORT || 3000);
+app.get('/', (_req, res) => res.send('hadix app online'));
+app.listen(PORT, () => console.log(`listening :${PORT}`));
+TS
+                fi
+                log_info "Starter TypeScript ${MAIN} criado."
+                ;;
+            ruby)
+                cat > "$APP_DIR/$MAIN" << 'RB'
+require 'dotenv/load'
+loop do
+  puts "hadix worker online: #{Time.now}"
+  sleep 60
+end
+RB
+                log_info "Starter Ruby ${MAIN} criado."
+                ;;
+            go)
+                cat > "$APP_DIR/$MAIN" << 'GO'
+package main
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+)
+
+func main() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "hadix app online")
+	})
+	log.Println("listening :3000")
+	log.Fatal(http.ListenAndServe(":3000", nil))
+}
+GO
+                log_info "Starter Go ${MAIN} criado."
+                ;;
+            rust)
+                cat > "$APP_DIR/$MAIN" << 'RS'
+use std::{thread, time::Duration};
+
+fn main() {
+    println!("hadix worker online");
+    thread::sleep(Duration::from_secs(60));
+}
+RS
+                log_info "Starter Rust ${MAIN} criado."
+                ;;
+            php)
+                cat > "$APP_DIR/$MAIN" << 'PHP'
+<?php
+echo "hadix app online";
+PHP
+                log_info "Starter PHP ${MAIN} criado."
+                ;;
+            lua)
+                cat > "$APP_DIR/$MAIN" << 'LUA'
+print("hadix worker online")
+os.execute("sleep 60")
+LUA
+                log_info "Starter Lua ${MAIN} criado."
+                ;;
+            *)
+                log_warn "Linguagem de '${MAIN}' nao detectada — starter generico nao criado."
+                ;;
+        esac
     fi
     # .env padrao p/ bots
     if [ "$APPTYPE" = "bot" ] && [ ! -f "$APP_DIR/.env" ]; then
@@ -143,11 +295,46 @@ ENV
     fi
 fi
 
-# --- instala dependencias ---
-if [ "$DO_INSTALL" = true ] && [ -f "$APP_DIR/package.json" ] && command_exists npm; then
-    log_step "Instalando dependencias em ${APP_DIR}"
-    (cd "$APP_DIR" && npm install --production --no-audit --no-fund >/dev/null 2>&1) \
-        || log_warn "npm install falhou (verifique package.json)."
+# --- instala dependencias (detecta linguagem pelo main/package) ---
+install_deps_for_app() {
+    # Python: pip install -r requirements.txt (ou cria venv se existir requirements)
+    if [ -f "$APP_DIR/requirements.txt" ]; then
+        log_step "Instalando dependencias Python em ${APP_DIR}"
+        if command_exists pip3; then
+            (cd "$APP_DIR" && pip3 install -q -r requirements.txt) 2>/dev/null \
+                && log_ok "pip: dependencias instaladas" \
+                || log_warn "pip install falhou (requirement incompativel?)."
+        elif command_exists python3; then
+            (cd "$APP_DIR" && python3 -m pip install -q -r requirements.txt) 2>/dev/null \
+                && log_ok "pip: dependencias instaladas" \
+                || log_warn "pip install falhou."
+        else
+            log_warn "python3/pip nao instalado — nao foi possivel instalar requirements.txt."
+        fi
+        return 0
+    fi
+    # Node: npm install
+    if [ -f "$APP_DIR/package.json" ] && command_exists npm; then
+        log_step "Instalando dependencias Node em ${APP_DIR}"
+        (cd "$APP_DIR" && npm install --no-audit --no-fund) >/dev/null 2>&1 \
+            && log_ok "npm: dependencias instaladas" \
+            || log_warn "npm install falhou (verifique package.json)."
+        return 0
+    fi
+    # Go: go mod tidy / go build
+    if [ -f "$APP_DIR/go.mod" ] && command_exists go; then
+        log_step "Instalando dependencias Go em ${APP_DIR}"
+        (cd "$APP_DIR" && go mod tidy) >/dev/null 2>&1 \
+            && log_ok "go: dependencias instaladas" \
+            || log_warn "go mod tidy falhou."
+        return 0
+    fi
+    log_warn "Nenhum gerenciador de deps detectado (requirements.txt/package.json/go.mod)."
+    return 0
+}
+
+if [ "$DO_INSTALL" = true ]; then
+    install_deps_for_app
 fi
 
 # --- inicia via pm2 (mesmo nome do app p/ logs/status resolverem) ---
@@ -161,7 +348,18 @@ if command_exists pm2; then
             log_ok "App '${NAME}' (site estatico) pronto — publique via nginx."
             exit 0
         fi
+        # comando exibido (detecta linguagem p/ log correto)
+        MAIN_LOWER="$(echo "$MAIN" | tr '[:upper:]' '[:lower:]')"
         cmd="node ${MAIN}"
+        case "$MAIN_LOWER" in
+            *.py) cmd="python3 ${MAIN}" ;;
+            *.ts) cmd="npx tsx ${MAIN}" ;;
+            *.rb) cmd="ruby ${MAIN}" ;;
+            *.go) cmd="go run ${MAIN}" ;;
+            *.rs) cmd="cargo run --bin ${NAME}" ;;
+            *.php) cmd="php ${MAIN}" ;;
+            *.lua) cmd="lua ${MAIN}" ;;
+        esac
         [ -n "$START" ] && cmd="$START"
         if (cd "$APP_DIR" && pm2 start "${MAIN}" --name "$NAME" --cwd "$APP_DIR" >/dev/null 2>&1); then
             log_ok "'${NAME}' iniciado via pm2 (${cmd})."
