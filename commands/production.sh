@@ -344,6 +344,13 @@ setup_stack() {
     install_if_missing "node" "node"
     install_if_missing "pm2" "pm2"
     install_if_missing "pnpm" "pnpm"
+    # Necessário para criar ambientes isolados de apps Python durante deploy.
+    if ! python3 -c 'import ensurepip, venv' >/dev/null 2>&1; then
+        echo "    ${CYAN}${SPIN}${NC} instalando python3-venv..."
+        pkg python3-venv || step_warn "falha ao instalar python3-venv"
+    else
+        echo "    ${GREEN}${TICK}${NC} python3-venv: ok"
+    fi
     install_if_missing "docker" "docker"
     install_if_missing "ssl" "certbot"
     install_if_missing "monitoring" "netdata"
