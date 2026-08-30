@@ -15,7 +15,7 @@ command_exists() { command -v "$1" >/dev/null 2>&1; }
 
 NAME=""; DO_INSTALL=true; SKIP_FILES=false
 for arg in "$@"; do
-  case "$arg" in --no-install) DO_INSTALL=false;; --skip-files) SKIP_FILES=false;; --help|-h) echo "Uso: bootstrap start <nome> [--no-install] [--skip-files]"; exit 0;; -*) ;; *) [ -z "$NAME" ] && NAME="$arg";;
+  case "$arg" in --no-install) DO_INSTALL=false;; --skip-files) SKIP_FILES=true;; --help|-h) echo "Uso: bootstrap start <nome> [--no-install] [--skip-files]"; exit 0;; -*) ;; *) [ -z "$NAME" ] && NAME="$arg";;
   esac
 done
 [ -z "$NAME" ] && { log_error "Nome do app obrigatorio."; exit 1; }
@@ -38,7 +38,7 @@ detect_from_folder() {
 if [ -z "$info" ]; then detect_from_folder || { log_error "App '${NAME}' nao registrado (e pasta ${OB_APPS_DIR:-/var/www}/${NAME} nao existe)."; exit 1; }; fi
 if [ -n "$info" ]; then
   if command_exists jq; then
-    APPTYPE="$(echo "$info" | jq -r '.type // "bot"')"; MAIN="$(echo "$info" | jq -r '.main // empty')"; START="$(echo "$info" | jq -r '.start // empty')"
+    APPTYPE="$(echo "$info" | jq -r '.type // "bot"')"; MAIN="$(echo "$info" | jq -r '.main // empty')"; START="$(echo "$info" | jq -r '.start // empty')"; BUILD="$(echo "$info" | jq -r '.build // empty')"
     PORT="$(echo "$info" | jq -r '.port // 0')"; DOMAIN="$(echo "$info" | jq -r '.domain // empty')"; PATHREG="$(echo "$info" | jq -r '.path // empty')"
   else
     APPTYPE="$(echo "$info" | grep -o '"type"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"; [ -z "$APPTYPE" ] && APPTYPE="bot"
@@ -47,10 +47,12 @@ if [ -n "$info" ]; then
     PORT="$(echo "$info" | grep -o '"port"[^:]*:[0-9]*' | head -1 | sed 's/.*"port"[^:]*:\([0-9]*\).*/\1/')"; [ -z "$PORT" ] && PORT=0
     DOMAIN="$(echo "$info" | grep -o '"domain"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
     PATHREG="$(echo "$info" | grep -o '"path"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
+    BUILD="$(echo "$info" | grep -o '"build"[^:]*:[^"]*"[^"]*"' | head -1 | sed 's/.*"\([^"]*\)".*/\1/')"
   fi
 fi
 [ -z "${APP_DIR:-}" ] && [ -n "$PATHREG" ] && APP_DIR="$PATHREG"
 [ -z "${APP_DIR:-}" ] && APP_DIR="${OB_APPS_DIR:-/var/www}/${NAME}"
+[ -z "${BUILD:-}" ] && BUILD=""
 [ -z "$MAIN" ] && MAIN="index.js"; [ -z "$START" ] && [ "$APPTYPE" = "site" ] && START=""
 
 # ── deploy atomico ──
@@ -133,7 +135,8 @@ case "$RUNTIME" in
 esac
 
 # P0 — VERIFICA RUNTIME DISPONIVEL
-command_exists "$RUN_CMD" || deploy_fail "Runtime '${RUN_CMD}' (${EXT_LANG}) nao instalado. Instale com: bootstrap install ${RUNTIME}"
+RUNTIME_BIN="${RUN_CMD%% *}"
+command_exists "$RUNTIME_BIN" || deploy_fail "Runtime '${RUNTIME_BIN}' (${EXT_LANG}) nao instalado. Rode: bootstrap production"
 log_ok "Runtime detectado: ${EXT_LANG} (${RUN_CMD})"
 
 # P0 — VERIFICA CONFIG DE DEPENDENCIAS + PREPARA
@@ -141,10 +144,14 @@ DEPS_FILE=""; DEPS_CMD=""
 case "$RUNTIME" in
   node)
     [ -f "$APP_DIR/package.json" ] || deploy_fail "package.json nao encontrado — necessario para apps Node.js."
-    if [ -f "$APP_DIR/package-lock.json" ]; then
-      DEPS_FILE="package-lock.json"; DEPS_CMD="npm ci"
+    if [ -f "$APP_DIR/pnpm-lock.yaml" ]; then
+      DEPS_FILE="pnpm-lock.yaml"; DEPS_CMD="pnpm install --no-frozen-lockfile"
+    elif [ -f "$APP_DIR/bun.lockb" ] || [ -f "$APP_DIR/bun.lock" ]; then
+      DEPS_FILE="bun.lock"; DEPS_CMD="bun install"
     elif [ -f "$APP_DIR/yarn.lock" ]; then
-      DEPS_FILE="yarn.lock"; DEPS_CMD="npm install"
+      DEPS_FILE="yarn.lock"; DEPS_CMD="yarn install"
+    elif [ -f "$APP_DIR/package-lock.json" ]; then
+      DEPS_FILE="package-lock.json"; DEPS_CMD="npm ci"
     else
       DEPS_FILE="package.json"; DEPS_CMD="npm install"
     fi
@@ -179,7 +186,16 @@ if [ "$DO_INSTALL" = true ]; then
   log_step "Instalando dependencias..."
   case "$RUNTIME" in
     node)
-      if [ -f "$APP_DIR/package-lock.json" ] && command_exists npm; then
+      if [ -f "$APP_DIR/pnpm-lock.yaml" ]; then
+        command_exists pnpm || deploy_fail "pnpm-lock.yaml encontrado, mas pnpm nao esta instalado. Rode: bootstrap production"
+        (cd "$APP_DIR" && pnpm install --no-frozen-lockfile) >&3 2>&1 || deploy_fail "pnpm install falhou — veja ${DEPLOY_LOG}"
+      elif { [ -f "$APP_DIR/bun.lockb" ] || [ -f "$APP_DIR/bun.lock" ]; }; then
+        command_exists bun || deploy_fail "Lockfile do Bun encontrado, mas bun nao esta instalado. Rode: bootstrap production"
+        (cd "$APP_DIR" && bun install) >&3 2>&1 || deploy_fail "bun install falhou — veja ${DEPLOY_LOG}"
+      elif [ -f "$APP_DIR/yarn.lock" ]; then
+        command_exists yarn || deploy_fail "yarn.lock encontrado, mas yarn nao esta instalado."
+        (cd "$APP_DIR" && yarn install) >&3 2>&1 || deploy_fail "yarn install falhou — veja ${DEPLOY_LOG}"
+      elif [ -f "$APP_DIR/package-lock.json" ] && command_exists npm; then
         (cd "$APP_DIR" && npm ci --no-audit --no-fund) >&3 2>&1 || (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 || deploy_fail "npm install/ci falhou — veja ${DEPLOY_LOG}"
       elif command_exists npm; then
         (cd "$APP_DIR" && npm install --no-audit --no-fund) >&3 2>&1 || deploy_fail "npm install falhou — veja ${DEPLOY_LOG}"
@@ -199,6 +215,26 @@ if [ "$DO_INSTALL" = true ]; then
       log_ok "Dependencias Python instaladas (venv: ${VENV_DIR})"
       ;;
   esac
+fi
+
+# BUILD e opcional. Sem ele, os manifests acima ainda instalam dependencias.
+# Quando declarado pela dashboard/hadix.config, executa somente depois da
+# instalacao ter terminado e propaga a falha para o deployment.
+AUTO_BUILD=""
+if [ -z "$BUILD" ] && [ -f "$APP_DIR/package.json" ] && command_exists jq; then
+  if [ -n "$(jq -r '.scripts.build // empty' "$APP_DIR/package.json" 2>/dev/null)" ]; then
+    if [ -f "$APP_DIR/pnpm-lock.yaml" ]; then AUTO_BUILD="pnpm run build"
+    elif [ -f "$APP_DIR/bun.lockb" ] || [ -f "$APP_DIR/bun.lock" ]; then AUTO_BUILD="bun run build"
+    elif [ -f "$APP_DIR/yarn.lock" ]; then AUTO_BUILD="yarn build"
+    else AUTO_BUILD="npm run build"
+    fi
+  fi
+fi
+BUILD_CMD="${BUILD:-$AUTO_BUILD}"
+if [ -n "$BUILD_CMD" ]; then
+  log_step "Executando BUILD: ${BUILD_CMD}${AUTO_BUILD:+ (detectado automaticamente)}"
+  (cd "$APP_DIR" && bash -lc "$BUILD_CMD") >&3 2>&1 || deploy_fail "BUILD falhou — veja ${DEPLOY_LOG}"
+  log_ok "BUILD concluido"
 fi
 
 # ════════════════════════════════════════════════════════════════════
