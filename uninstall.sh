@@ -14,6 +14,7 @@ fi
 
 echo "Isso vai remover o oracle-bootstrap de ${OB_HOME} e o comando 'bootstrap'."
 echo "Os apps ja criados (em /var/www, pm2, docker, nginx) NAO serao removidos."
+echo "Para limpar a VPS por completo (apps + infraestrutura), use: hadix purge"
 read -r -p "Confirmar remocao? [s/N]: " CONFIRM
 case "$CONFIRM" in
     [sSyY]*) ;;
