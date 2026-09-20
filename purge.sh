@@ -145,7 +145,11 @@ log_step "Removendo apps, arquivos e instalacao do Hadix.app..."
 rm -rf /var/www
 rm -rf /var/backups/oracle-bootstrap
 rm -rf /var/log/oracle-bootstrap /tmp/oracle-bootstrap
-rm -f /usr/local/bin/bootstrap /usr/local/bin/hadix
+for command_path in /usr/local/bin/hadix /usr/local/bin/hadix-app /usr/local/bin/bootstrap; do
+    if grep -Fq "${OB_HOME}/bootstrap/bootstrap.sh" "$command_path" 2>/dev/null; then
+        rm -f "$command_path"
+    fi
+done
 rm -rf "$OB_HOME"
 [ "$LOG_AVAILABLE" = true ] && OB_HOME="/tmp"   # nao ha mais logger depois daqui
 log_ok "Hadix.app removido."

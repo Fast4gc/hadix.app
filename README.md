@@ -27,6 +27,17 @@ Isso instala o projeto em `/opt/oracle-bootstrap`, cria os comandos globais
 
 ## Uso
 
+Se `sudo hadix` mostrar **Hadix AI — gerenciador do backend**, outro projeto
+ocupou o mesmo comando global. Para abrir este gerenciador diretamente, use:
+
+```bash
+sudo bash /opt/oracle-bootstrap/bootstrap/bootstrap.sh
+```
+
+Depois de instalar esta versao, `sudo hadix-app` tambem abre o Hadix.app e evita
+a disputa pelo nome `hadix`. A instalacao e a atualizacao recriam `bootstrap`,
+`hadix` e `hadix-app` sem alterar o destino de links de outro projeto.
+
 ```bash
 hadix                              # painel interativo Hadix.app
 bootstrap                          # tambem abre o painel por padrao

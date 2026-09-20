@@ -21,7 +21,11 @@ case "$CONFIRM" in
     *) echo "Cancelado."; exit 0 ;;
 esac
 
-rm -f /usr/local/bin/bootstrap
+for command_path in /usr/local/bin/hadix /usr/local/bin/hadix-app /usr/local/bin/bootstrap; do
+    if grep -Fq "${OB_HOME}/bootstrap/bootstrap.sh" "$command_path" 2>/dev/null; then
+        rm -f "$command_path"
+    fi
+done
 rm -rf "$OB_HOME"
 
 echo "oracle-bootstrap removido. Configuracoes de apps continuam em /var/www."

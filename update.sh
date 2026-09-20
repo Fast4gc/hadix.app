@@ -124,14 +124,16 @@ elif [ "$NEW_VERSION" = "$OLD_VERSION" ] && [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
     log_ok "Voce ja esta atualizado (v${BOLD}${NEW_VERSION}${NC})."
 fi
 
-cat > /usr/local/bin/bootstrap << WRAPPER
+for command_path in /usr/local/bin/bootstrap /usr/local/bin/hadix /usr/local/bin/hadix-app; do
+WRAPPER_TMP="$(mktemp "${command_path}.XXXXXX")" || exit 1
+cat > "$WRAPPER_TMP" << WRAPPER
 #!/usr/bin/env bash
 export OB_HOME="${OB_HOME}"
 exec bash "${OB_HOME}/bootstrap/bootstrap.sh" "\$@"
 WRAPPER
-chmod +x /usr/local/bin/bootstrap
-ln -sf /usr/local/bin/bootstrap /usr/local/bin/hadix
-log_ok "Comandos globais prontos: bootstrap e hadix"
+chmod 755 "$WRAPPER_TMP" && mv -fT "$WRAPPER_TMP" "$command_path" || exit 1
+done
+log_ok "Comandos globais prontos: bootstrap, hadix e hadix-app"
 
 if confirm "Atualizar pacotes do sistema (apt/dnf/yum upgrade)?"; then
     log_step "Atualizando pacotes do sistema"

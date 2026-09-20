@@ -48,15 +48,27 @@ if [ -d "$OB_HOME/.git" ]; then
     git -C "$OB_HOME" pull --ff-only
 else
     echo "==> Clonando Hadix.app para ${OB_HOME}..."
-    rm -rf "$OB_HOME"
-    if ! git clone --depth 1 "$REPO_URL" "$OB_HOME" 2>/dev/null; then
+    TMP_DIR="$(mktemp -d)"
+    trap 'rm -rf -- "$TMP_DIR"' EXIT
+    SRC_DIR="$TMP_DIR/source"
+    if ! git clone --depth 1 "$REPO_URL" "$SRC_DIR"; then
         echo "==> git clone falhou, baixando ZIP do branch main..."
-        TMP_ZIP="$(mktemp -d)/hadix.zip"
+        TMP_ZIP="$TMP_DIR/hadix.zip"
         curl -fsSL "https://github.com/Fast4gc/hadix.app/archive/refs/heads/main.zip" -o "$TMP_ZIP"
-        unzip -q "$TMP_ZIP" -d "$(dirname "$TMP_ZIP")"
-        mkdir -p "$OB_HOME"
-        cp -r "$(dirname "$TMP_ZIP")"/hadix.app-main/* "$OB_HOME"/
+        unzip -q "$TMP_ZIP" -d "$TMP_DIR"
+        SRC_DIR="$TMP_DIR/hadix.app-main"
     fi
+    # Valida o download antes de tocar na instalacao existente.
+    for required in bootstrap/bootstrap.sh bootstrap/config.sh VERSION; do
+        if [ ! -f "$SRC_DIR/$required" ]; then
+            echo "Download incompleto: faltando $required. Instalacao anterior preservada." >&2
+            exit 1
+        fi
+    done
+    mkdir -p "$OB_HOME"
+    # config/ e estado da VPS: nunca substituir durante uma reinstalacao.
+    # tar inclui os dotfiles, que eram perdidos no fallback ZIP.
+    tar -C "$SRC_DIR" --exclude=./config -cf - . | tar -C "$OB_HOME" -xf -
 fi
 
 chmod +x "$OB_HOME"/*.sh
@@ -65,20 +77,26 @@ chmod +x "$OB_HOME"/installers/*.sh
 chmod +x "$OB_HOME"/commands/*.sh
 
 # --- symlink global ----------------------------------------------------------
-echo "==> Criando comandos globais 'bootstrap' e 'hadix'..."
-cat > "$BIN_LINK" << WRAPPER
+echo "==> Criando comandos globais 'bootstrap', 'hadix' e 'hadix-app'..."
+mkdir -p "$(dirname "$BIN_LINK")"
+# Substitui o comando em si, sem escrever no destino de links de outro projeto.
+for command_path in "$BIN_LINK" "$HADIX_LINK" "$(dirname "$BIN_LINK")/hadix-app"; do
+WRAPPER_TMP="$(mktemp "${command_path}.XXXXXX")"
+cat > "$WRAPPER_TMP" << WRAPPER
 #!/usr/bin/env bash
 export OB_HOME="${OB_HOME}"
 exec bash "${OB_HOME}/bootstrap/bootstrap.sh" "\$@"
 WRAPPER
-chmod +x "$BIN_LINK"
-ln -sf "$BIN_LINK" "$HADIX_LINK"
+chmod 755 "$WRAPPER_TMP"
+mv -fT "$WRAPPER_TMP" "$command_path"
+done
 
 # --- config inicial -----------------------------------------------------------
 mkdir -p "$OB_HOME/config" /var/www /var/log/oracle-bootstrap
-for f in apps users domains; do
+for f in apps users domains plans; do
     [ -f "$OB_HOME/config/${f}.json" ] || echo '{}' > "$OB_HOME/config/${f}.json"
 done
+[ -f "$OB_HOME/config/nodes.json" ] || echo '[]' > "$OB_HOME/config/nodes.json"
 
 # --- arquivo de versao --------------------------------------------------------
 if [ -f "$OB_HOME/VERSION" ]; then
@@ -96,8 +114,12 @@ echo "  Rode 'bootstrap' ou 'hadix' para abrir o painel Hadix.app,"
 echo "  ou 'bootstrap --help' para ver todos os comandos. Sem argumentos ele abre o painel por padrao."
 echo ""
 
-read -r -p "Deseja abrir o menu agora? [s/N]: " OPEN_NOW
-case "$OPEN_NOW" in
-    [sSyY]*) exec bash "$OB_HOME/bootstrap/bootstrap.sh" ;;
-    *) ;;
-esac
+# Em pipes/automacao, EOF nao deve transformar uma instalacao concluida em erro.
+if [ -t 0 ]; then
+    if read -r -p "Deseja abrir o menu agora? [s/N]: " OPEN_NOW; then
+        case "$OPEN_NOW" in
+            [sSyY]*) bash "$OB_HOME/bootstrap/bootstrap.sh" ;;
+            *) ;;
+        esac
+    fi
+fi
