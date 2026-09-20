@@ -9,23 +9,36 @@ SSL automático**.
 ## Instalação (uma linha)
 
 ```
-curl -fsSLO https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh -o hadix-app-install.sh &&
+sudo bash ./hadix-app-install.sh
 ```
 
 ou com wget:
 
 ```
-wget https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
+wget -O hadix-app-install.sh https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh &&
+sudo bash ./hadix-app-install.sh
 ```
+
+Use o nome de arquivo indicado acima: sem `-O`, o wget pode salvar como
+`install.sh.1`, `install.sh.2`, etc., mantendo um `install.sh` antigo de outro
+projeto. O `&&` impede executar o instalador se o download falhar.
 
 Isso instala o projeto em `/opt/oracle-bootstrap`, cria os comandos globais
 `bootstrap` e `hadix` e abre o painel interativo (opcional). Sem argumentos, o comando abre o painel por padrão.
 
 ## Uso
+
+Se `sudo hadix` mostrar **Hadix AI — gerenciador do backend**, outro projeto
+ocupou o mesmo comando global. Para abrir este gerenciador diretamente, use:
+
+```bash
+sudo bash /opt/oracle-bootstrap/bootstrap/bootstrap.sh
+```
+
+Depois de instalar esta versao, `sudo hadix-app` tambem abre o Hadix.app e evita
+a disputa pelo nome `hadix`. A instalacao e a atualizacao recriam `bootstrap`,
+`hadix` e `hadix-app` sem alterar o destino de links de outro projeto.
 
 ```bash
 hadix                              # painel interativo Hadix.app

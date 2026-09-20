@@ -26,6 +26,14 @@ jobs:
           fi
           echo "OK: todos os scripts bash -n passaram"
 
+  installer:
+    name: Installer regression tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate isolated installation and recovery
+        run: bash tests/install.sh
+
   shellcheck:
     name: Shellcheck (se disponivel)
     runs-on: ubuntu-latest

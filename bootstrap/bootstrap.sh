@@ -62,6 +62,7 @@ Uso:
   bootstrap version                  Exibe a versao instalada
   bootstrap update                   Atualiza o Hadix.app sem reinstalar
   bootstrap uninstall                Remove o oracle-bootstrap
+  bootstrap purge                    Limpa COMPLETAMENTE a VPS (apps + infra instalada)
 
 Templates disponiveis para 'create':
   nextjs, vite, discord, express, nest, fastify, hono, python, go
@@ -137,6 +138,10 @@ dispatch() {
             ;;
         uninstall)
             bash "${OB_HOME}/uninstall.sh"
+            ;;
+        purge)
+            require_root
+            bash "${OB_HOME}/purge.sh"
             ;;
         -h|--help|help)
             show_usage
