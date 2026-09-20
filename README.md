@@ -9,18 +9,20 @@ SSL automático**.
 ## Instalação (uma linha)
 
 ```
-curl -fsSLO https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
+curl -fsSL https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh -o hadix-app-install.sh &&
+sudo bash ./hadix-app-install.sh
 ```
 
 ou com wget:
 
 ```
-wget https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh
-chmod +x install.sh
-sudo ./install.sh
+wget -O hadix-app-install.sh https://raw.githubusercontent.com/Fast4gc/hadix.app/main/install.sh &&
+sudo bash ./hadix-app-install.sh
 ```
+
+Use o nome de arquivo indicado acima: sem `-O`, o wget pode salvar como
+`install.sh.1`, `install.sh.2`, etc., mantendo um `install.sh` antigo de outro
+projeto. O `&&` impede executar o instalador se o download falhar.
 
 Isso instala o projeto em `/opt/oracle-bootstrap`, cria os comandos globais
 `bootstrap` e `hadix` e abre o painel interativo (opcional). Sem argumentos, o comando abre o painel por padrão.
